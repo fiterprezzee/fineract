@@ -1,28 +1,16 @@
-name: Fineract Prezzee Build
+name: Build uat image
 
-# Builds and pushes an immutable commit-tagged image to ECR.
-# Does NOT promote current-* — that happens in prezzeepay-infra deploy workflow
-# after a successful ECS deployment.
-#
-# Tag format:  dev-<sha> | uat-<sha> | main-<sha>
-# Triggered:   on push to tracked branches, or manually via workflow_dispatch.
+# Builds an immutable uat-<sha> image on merge to prezzee/uat.
+# Deploy to staging is a separate manual step (deploy.yaml) gated by environment approval.
 
 on:
   push:
     branches:
-      - prezzee/dev
       - prezzee/uat
-      - prezzee/main
-  workflow_dispatch:
-    inputs:
-      branch_override:
-        description: "Override slug (dev/uat/main) — leave blank to derive from branch"
-        required: false
-        default: ""
-      commit_sha:
-        description: "Rebuild from a specific commit SHA (dev only — leave blank for HEAD)"
-        required: false
-        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   AWS_REGION: eu-central-1
@@ -35,39 +23,19 @@ permissions:
 
 jobs:
   build-and-push:
+    name: Build uat image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
         with:
           fetch-depth: 0
-          # commit_sha is dev-only; ignored on non-dispatch triggers
-          ref: ${{ inputs.commit_sha || '' }}
 
       - name: Resolve image tag
         id: meta
         run: |
-          if [[ -n "${{ inputs.branch_override }}" ]]; then
-            SLUG="${{ inputs.branch_override }}"
-          else
-            case "${{ github.ref_name }}" in
-              prezzee/dev)  SLUG=dev  ;;
-              prezzee/uat)  SLUG=uat  ;;
-              prezzee/main) SLUG=main ;;
-              *)            SLUG=dev  ;;
-            esac
-          fi
-
-          # When a specific commit SHA is requested, enforce dev-only to prevent
-          # accidentally tagging an old commit into uat/main namespaces.
-          if [[ -n "${{ inputs.commit_sha }}" && "$SLUG" != "dev" ]]; then
-            echo "::error::commit_sha override is only allowed for dev builds (got slug=$SLUG)"
-            exit 1
-          fi
-
           SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "image_tag=$SLUG-$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "slug=$SLUG"                 >> $GITHUB_OUTPUT
+          echo "image_tag=uat-$SHORT_SHA" >> $GITHUB_OUTPUT
 
       - name: Set up JDK 21
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4
@@ -107,4 +75,4 @@ jobs:
           echo "### Build complete" >> $GITHUB_STEP_SUMMARY
           echo "Image: \`${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To deploy: trigger **deploy-fineract** in \`prezzeepay-infra\` with version \`$IMAGE_TAG\`" >> $GITHUB_STEP_SUMMARY
+          echo "To deploy to staging: trigger **deploy.yaml** with version \`$IMAGE_TAG\` (requires approval)" >> $GITHUB_STEP_SUMMARY

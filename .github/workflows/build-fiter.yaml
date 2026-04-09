@@ -19,6 +19,10 @@ on:
         description: "Override slug (dev/uat/main) — leave blank to derive from branch"
         required: false
         default: ""
+      commit_sha:
+        description: "Rebuild from a specific commit SHA (dev only — leave blank for HEAD)"
+        required: false
+        default: ""
 
 env:
   AWS_REGION: eu-central-1
@@ -37,6 +41,8 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
         with:
           fetch-depth: 0
+          # commit_sha is dev-only; ignored on non-dispatch triggers
+          ref: ${{ inputs.commit_sha || '' }}
 
       - name: Resolve image tag
         id: meta
@@ -51,6 +57,14 @@ jobs:
               *)            SLUG=dev  ;;
             esac
           fi
+
+          # When a specific commit SHA is requested, enforce dev-only to prevent
+          # accidentally tagging an old commit into uat/main namespaces.
+          if [[ -n "${{ inputs.commit_sha }}" && "$SLUG" != "dev" ]]; then
+            echo "::error::commit_sha override is only allowed for dev builds (got slug=$SLUG)"
+            exit 1
+          fi
+
           SHORT_SHA=$(git rev-parse --short HEAD)
           echo "image_tag=$SLUG-$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "slug=$SLUG"                 >> $GITHUB_OUTPUT

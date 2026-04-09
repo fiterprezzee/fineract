@@ -137,12 +137,21 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.event.repository.name }}-ecr-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Capture previous prod image digest (prod only)
-        # Capture BEFORE promoting so we know which digest to demote
+      - name: Capture previous image digest
+        # Capture BEFORE promoting so we know which digest to demote.
+        # Runs for all environments — demote is not prod-only.
         id: prev-image
-        if: steps.deploy-ecs.outcome == 'success' && inputs.environment == 'prod'
+        if: steps.deploy-ecs.outcome == 'success'
         run: |
           set -euo pipefail
+
+          # Derive the commit tag prefix that matches this environment's builds
+          case "${{ inputs.environment }}" in
+            dev)     PREFIX=dev-  ;;
+            staging) PREFIX=uat-  ;;
+            prod)    PREFIX=main- ;;
+          esac
+
           PREV_DIGEST=$(aws ecr batch-get-image \
             --repository-name "$ECR_REPOSITORY" \
             --image-ids imageTag="$CURRENT_TAG" \
@@ -150,11 +159,10 @@ jobs:
             --output text 2>/dev/null || echo "")
 
           if [[ -n "$PREV_DIGEST" && "$PREV_DIGEST" != "None" ]]; then
-            # Find the main-* commit tag on this digest (to delete it after promotion)
             PREV_COMMIT_TAG=$(aws ecr describe-images \
               --repository-name "$ECR_REPOSITORY" \
               --image-ids imageDigest="$PREV_DIGEST" \
-              --query 'imageDetails[0].imageTags[?starts_with(@, `main-`)] | [0]' \
+              --query "imageDetails[0].imageTags[?starts_with(@, \`${PREFIX}\`)] | [0]" \
               --output text 2>/dev/null || echo "")
             echo "prev_digest=$PREV_DIGEST"               >> $GITHUB_OUTPUT
             echo "prev_commit_tag=${PREV_COMMIT_TAG:-}"   >> $GITHUB_OUTPUT
@@ -183,12 +191,11 @@ jobs:
           echo "Promoted $CURRENT_TAG → ${{ inputs.version }}"
           echo "Previous running version was ${{ steps.image-state.outputs.current_version }}"
 
-      - name: Demote previous prod image (prod only)
-        # Delete the old main-* commit tag that was current-prod before this deploy.
-        # This keeps at most 5 main-* images, with the ECR lifecycle as a safety net.
+      - name: Demote previous image
+        # Delete the old commit tag that was current-{env} before this deploy.
+        # dev: lifecycle keeps 1; uat: lifecycle expires after 7 days; prod: keeps 5.
         if: |
           steps.deploy-ecs.outcome == 'success' &&
-          inputs.environment == 'prod' &&
           steps.prev-image.outputs.prev_commit_tag != ''
         run: |
           set -euo pipefail

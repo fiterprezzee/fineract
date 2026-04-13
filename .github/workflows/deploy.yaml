@@ -1,0 +1,225 @@
+name: Deploy to ECS
+
+# Deploys a fineract image to an ECS service and waits for stability.
+# Only after confirmed ECS stability:
+#   - promotes current-* ECR tag
+#   - (prod only) demotes the previous current-prod commit tag
+#
+# Pattern follows PrezzeePay/vps-build reusable-deployment.yml.
+# Trigger manually after a build workflow has pushed the image tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      component:
+        description: ECS service to deploy
+        required: true
+        type: choice
+        options:
+          - fineract        # main read/write API service
+          - fineract-batch  # async batch/scheduler service
+        default: fineract
+      version:
+        description: Image tag from the build workflow (e.g. dev-abc1234)
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.environment }}-${{ inputs.component }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  ARTIFACT_ACCOUNT_ID: "364777501454"
+  ECR_REPOSITORY: prezzeepay/fineract
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: "${{ inputs.component }} → ${{ inputs.environment }} @ ${{ inputs.version }}"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Set env
+        run: |
+          case "${{ inputs.environment }}" in
+            dev)     AWS_ACCOUNT=288045296691 ;;
+            staging) AWS_ACCOUNT=685716748697 ;;
+            prod)    AWS_ACCOUNT=570110656682 ;;
+          esac
+          case "${{ inputs.environment }}" in
+            dev)     CURRENT_TAG=current-dev     ;;
+            staging) CURRENT_TAG=current-staging ;;
+            prod)    CURRENT_TAG=current-prod    ;;
+          esac
+
+          INFRA_PREFIX="pp-plat-euc1-${{ inputs.environment }}"
+          REPO_SLUG="${GITHUB_REPOSITORY#*/}"
+
+          echo "AWS_ACCOUNT=$AWS_ACCOUNT"                                 >> "$GITHUB_ENV"
+          echo "CURRENT_TAG=$CURRENT_TAG"                                 >> "$GITHUB_ENV"
+          echo "INFRA_PREFIX=$INFRA_PREFIX"                               >> "$GITHUB_ENV"
+          echo "CLUSTER_NAME=${INFRA_PREFIX}-fineract-cluster"            >> "$GITHUB_ENV"
+          echo "SERVICE_NAME=${INFRA_PREFIX}-${{ inputs.component }}"     >> "$GITHUB_ENV"
+          echo "MIRROR_BUCKET=${INFRA_PREFIX}-ecs-tasks-mirror"           >> "$GITHUB_ENV"
+          echo "ARTIFACT_ECR_ROLE=arn:aws:iam::${ARTIFACT_ACCOUNT_ID}:role/pp-core-euc1-artifacts-${REPO_SLUG}-gha" >> "$GITHUB_ENV"
+
+      - name: Auth to AWS (target ECS account)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: "arn:aws:iam::${{ env.AWS_ACCOUNT }}:role/${{ env.SERVICE_NAME }}-gha"
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Resolve current and target images
+        id: image-state
+        run: |
+          set -euo pipefail
+
+          TARGET_IMAGE="${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${{ inputs.version }}"
+          CURRENT_IMAGE=$(aws ecs describe-task-definition \
+            --task-definition "$SERVICE_NAME" \
+            --query "taskDefinition.containerDefinitions[?name=='${{ inputs.component }}'] | [0].image" \
+            --output text 2>/dev/null || echo "")
+
+          CURRENT_VERSION=""
+          if [[ -n "$CURRENT_IMAGE" && "$CURRENT_IMAGE" != "None" && "$CURRENT_IMAGE" == *":"* ]]; then
+            CURRENT_VERSION="${CURRENT_IMAGE##*:}"
+          fi
+
+          echo "target_image=$TARGET_IMAGE"       >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Currently running: ${CURRENT_VERSION:-<none>}"
+          echo "Deploying:         ${{ inputs.version }}"
+
+      - name: Render ECS task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-arn: "arn:aws:ecs:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT }}:task-definition/${{ env.SERVICE_NAME }}"
+          container-name: ${{ inputs.component }}
+          image: ${{ steps.image-state.outputs.target_image }}
+
+      - name: Deploy to ECS
+        id: deploy-ecs
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ env.SERVICE_NAME }}
+          cluster: ${{ env.CLUSTER_NAME }}
+          wait-for-service-stability: true
+
+      - name: Update task definition S3 mirror
+        if: steps.deploy-ecs.outcome == 'success'
+        run: |
+          aws s3 cp "${{ steps.render-task-def.outputs.task-definition }}" \
+            "s3://$MIRROR_BUCKET/$CLUSTER_NAME/$SERVICE_NAME/task-template.json" \
+            --sse AES256
+
+      # Switch to artifacts account for ECR tag operations — only after ECS is stable
+      - name: Auth to artifacts ECR
+        if: steps.deploy-ecs.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.event.repository.name }}-ecr-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Capture previous image digest
+        # Capture BEFORE promoting so we know which digest to demote.
+        # Runs for all environments — demote is not prod-only.
+        id: prev-image
+        if: steps.deploy-ecs.outcome == 'success'
+        run: |
+          set -euo pipefail
+
+          # Derive the commit tag prefix that matches this environment's builds
+          case "${{ inputs.environment }}" in
+            dev)     PREFIX=dev-  ;;
+            staging) PREFIX=uat-  ;;
+            prod)    PREFIX=main- ;;
+          esac
+
+          PREV_DIGEST=$(aws ecr batch-get-image \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$CURRENT_TAG" \
+            --query 'images[0].imageId.imageDigest' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ -n "$PREV_DIGEST" && "$PREV_DIGEST" != "None" ]]; then
+            PREV_COMMIT_TAG=$(aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageDigest="$PREV_DIGEST" \
+              --query "imageDetails[0].imageTags[?starts_with(@, \`${PREFIX}\`)] | [0]" \
+              --output text 2>/dev/null || echo "")
+            echo "prev_digest=$PREV_DIGEST"               >> $GITHUB_OUTPUT
+            echo "prev_commit_tag=${PREV_COMMIT_TAG:-}"   >> $GITHUB_OUTPUT
+            echo "Previous $CURRENT_TAG: ${PREV_COMMIT_TAG:-unknown} ($PREV_DIGEST)"
+          else
+            echo "prev_digest="        >> $GITHUB_OUTPUT
+            echo "prev_commit_tag="    >> $GITHUB_OUTPUT
+          fi
+
+      - name: Promote current-* tag
+        if: steps.deploy-ecs.outcome == 'success'
+        run: |
+          set -euo pipefail
+          aws ecr put-image \
+            --region "$AWS_REGION" \
+            --registry-id "$ARTIFACT_ACCOUNT_ID" \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-tag "$CURRENT_TAG" \
+            --image-manifest "$(aws ecr batch-get-image \
+              --region "$AWS_REGION" \
+              --registry-id "$ARTIFACT_ACCOUNT_ID" \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag='${{ inputs.version }}' \
+              --query 'images[0].imageManifest' \
+              --output text)"
+          echo "Promoted $CURRENT_TAG → ${{ inputs.version }}"
+          echo "Previous running version was ${{ steps.image-state.outputs.current_version }}"
+
+      - name: Demote previous image
+        # Delete the old commit tag that was current-{env} before this deploy.
+        # dev: lifecycle keeps 1; uat: lifecycle expires after 7 days; prod: keeps 5.
+        if: |
+          steps.deploy-ecs.outcome == 'success' &&
+          steps.prev-image.outputs.prev_commit_tag != ''
+        run: |
+          set -euo pipefail
+          PREV_TAG="${{ steps.prev-image.outputs.prev_commit_tag }}"
+          PREV_DIGEST="${{ steps.prev-image.outputs.prev_digest }}"
+          echo "Demoting: $PREV_TAG ($PREV_DIGEST)"
+          aws ecr batch-delete-image \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageDigest="$PREV_DIGEST"
+          echo "Demoted: $PREV_TAG"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Deploy: ${{ inputs.component }} → ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version    | \`${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Previous   | \`${{ steps.image-state.outputs.current_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service    | \`$SERVICE_NAME\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| ECS deploy | ${{ steps.deploy-ecs.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.deploy-ecs.outcome }}" == "success" ]]; then
+            echo "| ECR tag    | \`$CURRENT_TAG\` → \`${{ inputs.version }}\` ✓ |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ -n "${{ steps.prev-image.outputs.prev_commit_tag }}" ]]; then
+            echo "| Demoted    | \`${{ steps.prev-image.outputs.prev_commit_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi

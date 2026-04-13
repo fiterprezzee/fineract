@@ -1,9 +1,10 @@
 name: Deploy to ECS
 
-# Deploys a fineract image to an ECS service and waits for stability.
-# Only after confirmed ECS stability:
-#   - promotes current-* ECR tag
-#   - (prod only) demotes the previous current-prod commit tag
+# Deploys a fineract image to both fineract-read and fineract-write ECS services in parallel,
+# then waits for both to stabilise before promoting the current-* ECR tag.
+#
+# ECR tag promotion (promote + demote) is tied to fineract-write to avoid duplicate operations
+# on the same image.
 #
 # Pattern follows PrezzeePay/vps-build reusable-deployment.yml.
 # Trigger manually after a build workflow has pushed the image tag.
@@ -19,21 +20,13 @@ on:
           - dev
           - staging
           - prod
-      component:
-        description: ECS service to deploy
-        required: true
-        type: choice
-        options:
-          - fineract        # main read/write API service
-          - fineract-batch  # async batch/scheduler service
-        default: fineract
       version:
         description: Image tag from the build workflow (e.g. dev-abc1234)
         required: true
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.environment }}-${{ inputs.component }}
+  group: ${{ github.workflow }}-${{ inputs.environment }}
   cancel-in-progress: false
 
 env:
@@ -47,9 +40,13 @@ permissions:
 
 jobs:
   deploy:
-    name: "${{ inputs.component }} → ${{ inputs.environment }} @ ${{ inputs.version }}"
+    name: "${{ matrix.component }} → ${{ inputs.environment }} @ ${{ inputs.version }}"
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    strategy:
+      matrix:
+        component: [fineract-read, fineract-write]
+      fail-fast: false
 
     steps:
       - name: Set env
@@ -72,7 +69,7 @@ jobs:
           echo "CURRENT_TAG=$CURRENT_TAG"                                 >> "$GITHUB_ENV"
           echo "INFRA_PREFIX=$INFRA_PREFIX"                               >> "$GITHUB_ENV"
           echo "CLUSTER_NAME=${INFRA_PREFIX}-fineract-cluster"            >> "$GITHUB_ENV"
-          echo "SERVICE_NAME=${INFRA_PREFIX}-${{ inputs.component }}"     >> "$GITHUB_ENV"
+          echo "SERVICE_NAME=${INFRA_PREFIX}-${{ matrix.component }}"     >> "$GITHUB_ENV"
           echo "MIRROR_BUCKET=${INFRA_PREFIX}-ecs-tasks-mirror"           >> "$GITHUB_ENV"
           echo "ARTIFACT_ECR_ROLE=arn:aws:iam::${ARTIFACT_ACCOUNT_ID}:role/pp-core-euc1-artifacts-${REPO_SLUG}-gha" >> "$GITHUB_ENV"
 
@@ -91,7 +88,7 @@ jobs:
           TARGET_IMAGE="${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${{ inputs.version }}"
           CURRENT_IMAGE=$(aws ecs describe-task-definition \
             --task-definition "$SERVICE_NAME" \
-            --query "taskDefinition.containerDefinitions[?name=='${{ inputs.component }}'] | [0].image" \
+            --query "taskDefinition.containerDefinitions[?name=='${{ matrix.component }}'] | [0].image" \
             --output text 2>/dev/null || echo "")
 
           CURRENT_VERSION=""
@@ -109,7 +106,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition-arn: "arn:aws:ecs:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT }}:task-definition/${{ env.SERVICE_NAME }}"
-          container-name: ${{ inputs.component }}
+          container-name: ${{ matrix.component }}
           image: ${{ steps.image-state.outputs.target_image }}
 
       - name: Deploy to ECS
@@ -128,9 +125,9 @@ jobs:
             "s3://$MIRROR_BUCKET/$CLUSTER_NAME/$SERVICE_NAME/task-template.json" \
             --sse AES256
 
-      # Switch to artifacts account for ECR tag operations — only after ECS is stable
+      # ECR tag promotion runs once per deploy — tied to fineract-write to avoid duplicate operations.
       - name: Auth to artifacts ECR
-        if: steps.deploy-ecs.outcome == 'success'
+        if: steps.deploy-ecs.outcome == 'success' && matrix.component == 'fineract-write'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
@@ -139,9 +136,8 @@ jobs:
 
       - name: Capture previous image digest
         # Capture BEFORE promoting so we know which digest to demote.
-        # Runs for all environments — demote is not prod-only.
         id: prev-image
-        if: steps.deploy-ecs.outcome == 'success'
+        if: steps.deploy-ecs.outcome == 'success' && matrix.component == 'fineract-write'
         run: |
           set -euo pipefail
 
@@ -173,7 +169,7 @@ jobs:
           fi
 
       - name: Promote current-* tag
-        if: steps.deploy-ecs.outcome == 'success'
+        if: steps.deploy-ecs.outcome == 'success' && matrix.component == 'fineract-write'
         run: |
           set -euo pipefail
           aws ecr put-image \
@@ -196,6 +192,7 @@ jobs:
         # dev: lifecycle keeps 1; uat: lifecycle expires after 7 days; prod: keeps 5.
         if: |
           steps.deploy-ecs.outcome == 'success' &&
+          matrix.component == 'fineract-write' &&
           steps.prev-image.outputs.prev_commit_tag != ''
         run: |
           set -euo pipefail
@@ -210,7 +207,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "### Deploy: ${{ inputs.component }} → ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Deploy: ${{ matrix.component }} → ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| Version    | \`${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY

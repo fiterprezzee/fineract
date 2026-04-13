@@ -57,7 +57,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::364777501454:role/pp-core-euc1-artifacts-prezzee-fineract-gha
+          role-to-assume: arn:aws:iam::364777501454:role/pp-core-euc1-artifacts-fineract-gha
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR

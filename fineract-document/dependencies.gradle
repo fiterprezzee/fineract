@@ -51,9 +51,13 @@ dependencies {
             'org.apache.httpcomponents:httpcore',
 
             'org.apache.tika:tika-core',
-            'org.apache.tika:tika-parser-microsoft-module',
-            'org.apache.tika:tika-parser-miscoffice-module',
             )
+    implementation ('org.apache.tika:tika-parser-microsoft-module') {
+        exclude group: 'org.bouncycastle', module: 'bcjmail-jdk18on'
+    }
+    implementation ('org.apache.tika:tika-parser-miscoffice-module') {
+        exclude group: 'org.bouncycastle', module: 'bcjmail-jdk18on'
+    }
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'org.mapstruct:mapstruct-processor'

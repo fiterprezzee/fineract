@@ -6,7 +6,7 @@ name: Build dev image
 on:
   push:
     branches:
-      - prezzee/dev
+      - prezzee/develop
   workflow_dispatch:
     inputs:
       commit_sha:

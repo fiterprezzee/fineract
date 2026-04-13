@@ -88,12 +88,9 @@ jobs:
           echo "Auto-dispatching deploy to dev..." >> $GITHUB_STEP_SUMMARY
 
   dispatch-deploy:
-    name: Dispatch deploy → dev (${{ matrix.component }})
+    name: Dispatch deploy → dev
     needs: build-and-push
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        component: [fineract, fineract-batch]
     steps:
       - name: Trigger deploy
         env:
@@ -104,5 +101,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref "${{ github.ref_name }}" \
             --field environment=dev \
-            --field component=${{ matrix.component }} \
             --field version="$IMAGE_TAG"

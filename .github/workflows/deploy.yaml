@@ -109,6 +109,9 @@ jobs:
           container-name: ${{ matrix.component }}
           image: ${{ steps.image-state.outputs.target_image }}
 
+      - name: Print rendered task definition
+        run: jq . "${{ steps.render-task-def.outputs.task-definition }}"
+
       - name: Deploy to ECS
         id: deploy-ecs
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2

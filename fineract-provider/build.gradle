@@ -310,8 +310,24 @@ cucumber {
     ]
 }
 
-tasks.jib.dependsOn(bootJar, resolve)
-tasks.jibDockerBuild.dependsOn(bootJar, resolve)
+// Download Datadog Java APM agent from Maven Central into the build dir.
+// Jib picks it up via extraDirectories above and places it at /dd-java-agent.jar.
+configurations {
+    ddAgent
+}
+
+dependencies {
+    ddAgent 'com.datadoghq:dd-java-agent:1.58.1'
+}
+
+tasks.register('copyDatadogAgent', Copy) {
+    from configurations.ddAgent
+    into "${buildDir}/dd-agent"
+    rename(/dd-java-agent-.*\.jar/, 'dd-java-agent.jar')
+}
+
+tasks.jib.dependsOn(copyDatadogAgent, bootJar, resolve)
+tasks.jibDockerBuild.dependsOn(copyDatadogAgent, bootJar, resolve)
 
 // Configuration for git properties gradle plugin
 // https://github.com/n0mer/gradle-git-properties

@@ -292,6 +292,15 @@ jib {
         ]
     }
 
+    extraDirectories {
+        paths {
+            path {
+                from = file("${buildDir}/dd-agent")
+                into = '/'
+            }
+        }
+    }
+
     allowInsecureRegistries = true
 }
 

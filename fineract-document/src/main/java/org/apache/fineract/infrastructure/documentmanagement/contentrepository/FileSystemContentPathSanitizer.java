@@ -20,6 +20,7 @@ package org.apache.fineract.infrastructure.documentmanagement.contentrepository;
 
 import jakarta.annotation.PostConstruct;
 import java.io.BufferedInputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -31,10 +32,10 @@ import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.documentmanagement.exception.ContentManagementException;
 import org.apache.tika.Tika;
-import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
-import org.apache.tika.parser.AutoDetectParser;
-import org.apache.tika.sax.BodyContentHandler;
+import org.apache.tika.mime.MediaType;
+import org.apache.tika.mime.MediaTypeRegistry;
+import org.apache.tika.mime.MimeTypes;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -100,12 +101,12 @@ public class FileSystemContentPathSanitizer implements ContentPathSanitizer {
                     throw new RuntimeException(String.format("Could not detect content mime type for %s!", fileName));
                 }
 
-                if (!fineractProperties.getContent().getMimeWhitelist().contains(contentMimeType)) {
-                    throw new RuntimeException(
-                            String.format("Detected content mime type %s for %s not allowed!", contentMimeType, fileName));
-                }
+                MediaTypeRegistry registry = MimeTypes.getDefaultMimeTypes().getMediaTypeRegistry();
+                MediaType extType = MediaType.parse(extensionMimeType);
+                MediaType ctnType = MediaType.parse(contentMimeType);
 
-                if (!contentMimeType.equalsIgnoreCase(extensionMimeType)) {
+                if (extType == null || ctnType == null
+                        || !(registry.isInstanceOf(extType, ctnType) || registry.isInstanceOf(ctnType, extType))) {
                     throw new RuntimeException(String.format("Detected filename (%s) and content (%s) mime type do not match!",
                             extensionMimeType, contentMimeType));
                 }
@@ -125,14 +126,7 @@ public class FileSystemContentPathSanitizer implements ContentPathSanitizer {
         }
     }
 
-    private String detectContentMimeType(BufferedInputStream bis) throws Exception {
-        TikaInputStream tis = TikaInputStream.get(bis);
-        AutoDetectParser parser = new AutoDetectParser();
-        // NOTE: turn off write limit with "-1"
-        BodyContentHandler handler = new BodyContentHandler(-1);
-        Metadata metadata = new Metadata();
-        parser.parse(tis, handler, metadata);
-
-        return metadata.get("Content-Type");
+    private String detectContentMimeType(BufferedInputStream bis) throws IOException {
+        return MimeTypes.getDefaultMimeTypes().detect(bis, new Metadata()).toString();
     }
 }

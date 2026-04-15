@@ -275,6 +275,15 @@ jib {
         user = 'nobody:nogroup'
     }
 
+    extraDirectories {
+        paths {
+            path {
+                from = file("${buildDir}/dd-agent")
+                into = '/'
+            }
+        }
+    }
+
     allowInsecureRegistries = true
 }
 

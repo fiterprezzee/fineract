@@ -71,6 +71,8 @@ jobs:
           echo "CLUSTER_NAME=${INFRA_PREFIX}-fineract-cluster"            >> "$GITHUB_ENV"
           echo "SERVICE_NAME=${INFRA_PREFIX}-${{ matrix.component }}"     >> "$GITHUB_ENV"
           echo "MIRROR_BUCKET=${INFRA_PREFIX}-ecs-tasks-mirror"           >> "$GITHUB_ENV"
+          echo "TASK_TEMPLATE_S3_KEY=${INFRA_PREFIX}-fineract-cluster/${INFRA_PREFIX}-${{ matrix.component }}/task-template.json" >> "$GITHUB_ENV"
+          echo "TASK_DEFINITION_S3_KEY=${INFRA_PREFIX}-fineract-cluster/${INFRA_PREFIX}-${{ matrix.component }}/task-definition.json" >> "$GITHUB_ENV"
           echo "ARTIFACT_ECR_ROLE=arn:aws:iam::${ARTIFACT_ACCOUNT_ID}:role/pp-core-euc1-artifacts-${REPO_SLUG}-gha" >> "$GITHUB_ENV"
 
       - name: Auth to AWS (target ECS account)
@@ -101,11 +103,17 @@ jobs:
           echo "Currently running: ${CURRENT_VERSION:-<none>}"
           echo "Deploying:         ${{ inputs.version }}"
 
+      - name: Download task template from S3 mirror
+        run: |
+          set -euo pipefail
+          aws s3 cp "s3://$MIRROR_BUCKET/$TASK_TEMPLATE_S3_KEY" ./task-template.json
+          jq . ./task-template.json
+
       - name: Render ECS task definition
         id: render-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition-arn: "arn:aws:ecs:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT }}:task-definition/${{ env.SERVICE_NAME }}"
+          task-definition: ./task-template.json
           container-name: ${{ matrix.component }}
           image: ${{ steps.image-state.outputs.target_image }}
 
@@ -125,7 +133,7 @@ jobs:
         if: steps.deploy-ecs.outcome == 'success'
         run: |
           aws s3 cp "${{ steps.render-task-def.outputs.task-definition }}" \
-            "s3://$MIRROR_BUCKET/$CLUSTER_NAME/$SERVICE_NAME/task-template.json" \
+            "s3://$MIRROR_BUCKET/$TASK_DEFINITION_S3_KEY" \
             --sse AES256
 
       # ECR tag promotion runs once per deploy — tied to fineract-write to avoid duplicate operations.

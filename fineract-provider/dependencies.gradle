@@ -95,8 +95,6 @@ dependencies {
             'org.apache.poi:poi',
             'org.apache.poi:poi-ooxml',
             'org.apache.tika:tika-core',
-            'org.apache.tika:tika-parser-microsoft-module',
-            'org.apache.tika:tika-parser-miscoffice-module',
 
             'org.liquibase:liquibase-core',
 
@@ -120,6 +118,13 @@ dependencies {
             'io.github.resilience4j:resilience4j-spring-boot3',
             'org.reflections:reflections',
             )
+
+    implementation ('org.apache.tika:tika-parser-microsoft-module') {
+        exclude group: 'org.bouncycastle', module: 'bcjmail-jdk18on'
+    }
+    implementation ('org.apache.tika:tika-parser-miscoffice-module') {
+        exclude group: 'org.bouncycastle', module: 'bcjmail-jdk18on'
+    }
 
     implementation 'software.amazon.msk:aws-msk-iam-auth'
 

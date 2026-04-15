@@ -35,5 +35,7 @@ dependencies {
             'com.squareup.okhttp3:logging-interceptor',
             )
 
+    implementation 'org.openapitools:jackson-databind-nullable'
+
     testImplementation 'org.assertj:assertj-core'
 }

@@ -88,7 +88,7 @@ buildscript {
         classpath 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
         classpath 'com.google.cloud.tools:jib-layer-filter-extension-gradle:0.3.0'
         classpath 'org.apache.commons:commons-lang3:3.18.0'
-        classpath 'io.swagger.core.v3:swagger-jaxrs2-jakarta:2.2.22'
+        classpath 'io.swagger.core.v3:swagger-jaxrs2-jakarta:2.2.45'
         classpath 'jakarta.servlet:jakarta.servlet-api:6.1.0'
     }
 }
@@ -102,9 +102,9 @@ plugins {
     id 'com.github.hierynomus.license' version '0.16.1' apply false
     id 'com.github.jk1.dependency-license-report' version '2.9' apply false
     id 'org.zeroturnaround.gradle.jrebel' version '1.2.0' apply false
-    id 'org.springframework.boot' version '3.5.5' apply false
+    id 'org.springframework.boot' version '3.5.13' apply false
     id 'net.ltgt.errorprone' version '4.1.0' apply false
-    id 'io.swagger.core.v3.swagger-gradle-plugin' version '2.2.23' apply false
+    id 'io.swagger.core.v3.swagger-gradle-plugin' version '2.2.45' apply false
     id 'com.gorylenko.gradle-git-properties' version '2.4.2' apply false
     id 'org.asciidoctor.jvm.convert' version '4.0.5' apply false
     id 'org.asciidoctor.jvm.pdf' version '4.0.5' apply false
@@ -530,6 +530,7 @@ configure(project.fineractJavaProjects) {
     dependencies {
         checkstyle 'com.puppycrawl.tools:checkstyle:11.0.0'
         checkstyle 'com.github.sevntu-checkstyle:sevntu-checks:1.44.1'
+        checkstyle 'org.codehaus.plexus:plexus-utils:4.0.3'
     }
 
     // Configuration for JaCoCo code coverage task

@@ -9,10 +9,10 @@ on:
       - prezzee/develop
   workflow_dispatch:
     inputs:
-      commit_sha:
-        description: "Rebuild from a specific commit SHA (leave blank for HEAD)"
+      git_ref:
+        description: Commit SHA, tag, or branch to build. Defaults to the selected ref.
         required: false
-        default: ""
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
         with:
           fetch-depth: 0
-          ref: ${{ inputs.commit_sha || '' }}
+          ref: ${{ inputs.git_ref || github.ref }}
 
       - name: Resolve image tag
         id: meta

@@ -4,6 +4,7 @@ name: Build prod image
 # Deploy to prod is a separate manual step (deploy.yaml) gated by environment approval.
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - prezzee/main

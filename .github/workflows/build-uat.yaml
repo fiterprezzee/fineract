@@ -5,6 +5,11 @@ name: Build uat image
 
 on:
   workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Commit SHA, tag, or branch to build. Defaults to the selected ref.
+        required: false
+        type: string
   push:
     branches:
       - prezzee/uat
@@ -31,6 +36,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref || github.ref }}
 
       - name: Resolve image tag
         id: meta

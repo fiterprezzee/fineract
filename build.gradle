@@ -149,6 +149,7 @@ gitVersioning.apply {
 }
 
 ext['groovy.version'] = '4.0.17'
+ext['thymeleaf.version'] = '3.1.4.RELEASE'
 ext['swaggerFile'] = "$rootDir/fineract-provider/build/resources/main/static/fineract.json".toString()
 
 // Apply static weaving configuration to all subprojects

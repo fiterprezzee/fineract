@@ -1,7 +1,7 @@
-name: Build uat image
+name: Build & deploy uat
 
-# Builds an immutable uat-<sha> image on merge to prezzee/uat.
-# Deploy to staging is a separate manual step (deploy.yaml) gated by environment approval.
+# Builds an immutable uat-<sha> image on merge to prezzee/uat,
+# then auto-dispatches the gated staging deployment workflow.
 
 on:
   workflow_dispatch:
@@ -26,11 +26,14 @@ env:
 permissions:
   id-token: write
   contents: read
+  actions: write  # needed to dispatch deploy.yaml
 
 jobs:
   build-and-push:
     name: Build uat image
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
@@ -82,4 +85,20 @@ jobs:
           echo "### Build complete" >> $GITHUB_STEP_SUMMARY
           echo "Image: \`${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To deploy to staging: trigger **deploy.yaml** with version \`$IMAGE_TAG\` (requires approval)" >> $GITHUB_STEP_SUMMARY
+          echo "Auto-dispatching gated deploy to staging..." >> $GITHUB_STEP_SUMMARY
+
+  dispatch-deploy:
+    name: Dispatch deploy → staging
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          gh workflow run deploy.yaml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "${{ github.ref_name }}" \
+            --field environment=staging \
+            --field version="$IMAGE_TAG"

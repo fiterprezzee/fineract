@@ -396,7 +396,6 @@ public class FineractProperties {
         private String path;
     }
 
-
     @Getter
     @Setter
     public static class FineractReportProperties {

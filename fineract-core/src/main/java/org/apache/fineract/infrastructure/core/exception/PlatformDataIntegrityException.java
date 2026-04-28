@@ -38,7 +38,6 @@ public class PlatformDataIntegrityException extends AbstractPlatformException {
     }
 
 
-
     public String getParameterName() {
         return this.parameterName;
     }

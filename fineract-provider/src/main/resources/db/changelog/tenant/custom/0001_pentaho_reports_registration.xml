@@ -26,7 +26,7 @@
     <!-- Register Pentaho Reports in stretchy_report table -->
     <!-- These reports require .prpt files to be deployed at FINERACT_PENTAHO_REPORTS_PATH/pentahoReportsPostgres/ -->
 
-    <changeSet author="fineract" id="pentaho-reports-registration-1">
+    <changeSet author="fineract" id="1">
         <preConditions onFail="MARK_RAN">
             <sqlCheck expectedResult="0">
                 SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Active Loan Summary per Branch' AND report_type = 'Pentaho'

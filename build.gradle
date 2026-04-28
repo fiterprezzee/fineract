@@ -306,6 +306,9 @@ allprojects  {
             '**/native/**',
             '**/wrapper/**',
             '**/build/**',
+            // Third-party libraries (Pentaho JARs)
+            '**/libs/**',
+            '**/*.jar',
             // Api Docs
             '**/legacy-docs/*.*',
             '**/docs/system-architecture/.htaccess',

@@ -1,0 +1,576 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership. The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied. See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+-->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Register Pentaho Reports in stretchy_report table -->
+    <!-- These reports require .prpt files to be deployed at FINERACT_PENTAHO_REPORTS_PATH/pentahoReportsPostgres/ -->
+
+    <changeSet author="fineract" id="pentaho-reports-registration-1">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Active Loan Summary per Branch' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Active Loan Summary per Branch"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Active Loan Summary per Branch"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-2">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Active Loans Details(Pentaho)' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Active Loans Details(Pentaho)"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Active Loans Details"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-3">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Balance Outstanding' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Balance Outstanding"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Accounting"/>
+            <column name="report_sql"/>
+            <column name="description" value="Balance Outstanding Report"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-4">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Branch Expected Cash Flow' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Branch Expected Cash Flow"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Branch Expected Cash Flow"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-5">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Client Loan Account Schedule' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Client Loan Account Schedule"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Client Loan Account Schedule"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-6">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Client Saving Transactions' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Client Saving Transactions"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Savings"/>
+            <column name="report_sql"/>
+            <column name="description" value="Client Saving Transactions"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-7">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Client Savings Summary' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Client Savings Summary"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Savings"/>
+            <column name="report_sql"/>
+            <column name="description" value="Client Savings Summary"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-8">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Collection Report' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Collection Report"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Collection Report"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-9">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Daily Teller Cash Report (Pentaho)' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Daily Teller Cash Report (Pentaho)"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Accounting"/>
+            <column name="report_sql"/>
+            <column name="description" value="Daily Teller Cash Report"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-10">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Disbursal Report' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Disbursal Report"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Disbursal Report"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-11">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Expected Payments By Date - Basic(Pentaho)' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Expected Payments By Date - Basic(Pentaho)"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Expected Payments By Date - Basic"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-12">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Expected Payments By Date - Formatted' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Expected Payments By Date - Formatted"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Expected Payments By Date - Formatted"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-13">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Funds Disbursed Between Dates Summary(Pentaho)' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Funds Disbursed Between Dates Summary(Pentaho)"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Funds Disbursed Between Dates Summary"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-14">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Funds Disbursed Between Dates Summary by Office(Pentaho)' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Funds Disbursed Between Dates Summary by Office(Pentaho)"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Funds Disbursed Between Dates Summary by Office"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-15">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'GeneralLedgerReport' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="GeneralLedgerReport"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Accounting"/>
+            <column name="report_sql"/>
+            <column name="description" value="General Ledger Report"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-16">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Loan Account statement' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Loan Account statement"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Loan Account Statement"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-17">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Loan Transaction Receipt' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Loan Transaction Receipt"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Loan"/>
+            <column name="report_sql"/>
+            <column name="description" value="Loan Transaction Receipt"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-18">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Saving Account Statement' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Saving Account Statement"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Savings"/>
+            <column name="report_sql"/>
+            <column name="description" value="Saving Account Statement"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-19">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Savings Transaction Receipt' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Savings Transaction Receipt"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Savings"/>
+            <column name="report_sql"/>
+            <column name="description" value="Savings Transaction Receipt"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-20">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Savings Transactions' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Savings Transactions"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Savings"/>
+            <column name="report_sql"/>
+            <column name="description" value="Savings Transactions"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-21">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Staff Assignment History' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Staff Assignment History"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Staff"/>
+            <column name="report_sql"/>
+            <column name="description" value="Staff Assignment History"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-22">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Statement Of Account-Pentaho' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Statement Of Account-Pentaho"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Client"/>
+            <column name="report_sql"/>
+            <column name="description" value="Statement Of Account"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-23">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'Statement' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="Statement"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Client"/>
+            <column name="report_sql"/>
+            <column name="description" value="Client Statement"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-registration-24">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM stretchy_report WHERE report_name = 'TxnRunningBalances(Pentaho)' AND report_type = 'Pentaho'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="stretchy_report">
+            <column name="report_name" value="TxnRunningBalances(Pentaho)"/>
+            <column name="report_type" value="Pentaho"/>
+            <column name="report_subtype"/>
+            <column name="report_category" value="Transaction"/>
+            <column name="report_sql"/>
+            <column name="description" value="Transaction Running Balances"/>
+            <column name="core_report" valueBoolean="false"/>
+            <column name="use_report" valueBoolean="true"/>
+            <column name="self_service_user_report" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <!-- Add permissions for the new Pentaho reports -->
+    <changeSet author="fineract" id="pentaho-reports-permissions-1">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM m_permission WHERE code = 'READ_Active Loan Summary per Branch'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="m_permission">
+            <column name="grouping" value="report"/>
+            <column name="code" value="READ_Active Loan Summary per Branch"/>
+            <column name="entity_name" value="Active Loan Summary per Branch"/>
+            <column name="action_name" value="READ"/>
+            <column name="can_maker_checker" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-permissions-2">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM m_permission WHERE code = 'READ_Balance Outstanding'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="m_permission">
+            <column name="grouping" value="report"/>
+            <column name="code" value="READ_Balance Outstanding"/>
+            <column name="entity_name" value="Balance Outstanding"/>
+            <column name="action_name" value="READ"/>
+            <column name="can_maker_checker" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-permissions-3">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM m_permission WHERE code = 'READ_Branch Expected Cash Flow'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="m_permission">
+            <column name="grouping" value="report"/>
+            <column name="code" value="READ_Branch Expected Cash Flow"/>
+            <column name="entity_name" value="Branch Expected Cash Flow"/>
+            <column name="action_name" value="READ"/>
+            <column name="can_maker_checker" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-permissions-4">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM m_permission WHERE code = 'READ_Collection Report'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="m_permission">
+            <column name="grouping" value="report"/>
+            <column name="code" value="READ_Collection Report"/>
+            <column name="entity_name" value="Collection Report"/>
+            <column name="action_name" value="READ"/>
+            <column name="can_maker_checker" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-permissions-5">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM m_permission WHERE code = 'READ_Disbursal Report'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="m_permission">
+            <column name="grouping" value="report"/>
+            <column name="code" value="READ_Disbursal Report"/>
+            <column name="entity_name" value="Disbursal Report"/>
+            <column name="action_name" value="READ"/>
+            <column name="can_maker_checker" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+    <changeSet author="fineract" id="pentaho-reports-permissions-6">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM m_permission WHERE code = 'READ_GeneralLedgerReport'
+            </sqlCheck>
+        </preConditions>
+        <insert tableName="m_permission">
+            <column name="grouping" value="report"/>
+            <column name="code" value="READ_GeneralLedgerReport"/>
+            <column name="entity_name" value="GeneralLedgerReport"/>
+            <column name="action_name" value="READ"/>
+            <column name="can_maker_checker" valueBoolean="false"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

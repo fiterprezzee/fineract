@@ -394,6 +394,14 @@ public class FineractProperties {
     public static class FineractReportProperties {
 
         private FineractExportProperties export;
+        private FineractPentahoProperties pentaho;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractPentahoProperties {
+
+        private String path;
     }
 
     @Getter

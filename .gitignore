@@ -35,3 +35,6 @@ gradleExp/
 .java-version
 
 .windsurf/
+
+# Allow jar files in fineract-provider/libs
+!/fineract-provider/libs/*.jar

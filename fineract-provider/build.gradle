@@ -338,6 +338,30 @@ tasks.register('copyDatadogAgent', Copy) {
 tasks.jib.dependsOn(copyDatadogAgent, bootJar, resolve)
 tasks.jibDockerBuild.dependsOn(copyDatadogAgent, bootJar, resolve)
 
+// Task to copy Pentaho reports for deployment
+tasks.register('copyPentahoReports', Copy) {
+    description = 'Copies Pentaho report files to build directory for deployment'
+    from 'pentahoReports'
+    into "${buildDir}/pentahoReports"
+    include '*.prpt'
+    include '*.properties'
+    include '*.png'
+}
+
+// Task to prepare reports for Docker/Jib deployment
+// Reports are placed at /app/pentahoReports in the container
+// Set FINERACT_PENTAHO_REPORTS_PATH=/app in your Kubernetes deployment
+tasks.register('preparePentahoReportsForDocker', Copy) {
+    description = 'Copies Pentaho reports to a location for Docker image'
+    dependsOn copyPentahoReports
+    from "${buildDir}/pentahoReports"
+    into "${buildDir}/dd-agent/app/pentahoReportsPostgres"
+}
+
+// Ensure Pentaho reports are included in Docker builds
+tasks.jib.dependsOn(preparePentahoReportsForDocker)
+tasks.jibDockerBuild.dependsOn(preparePentahoReportsForDocker)
+
 // Configuration for git properties gradle plugin
 // https://github.com/n0mer/gradle-git-properties
 gitProperties {

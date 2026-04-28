@@ -228,4 +228,9 @@ dependencies {
         exclude group: 'org.skyscreamer'
     }
     testImplementation ('org.mockito:mockito-inline')
+
+    implementation(
+            'org.apache.groovy:groovy-all:4.0.12',
+            fileTree(dir: 'libs', include: '*.jar')
+            )
 }

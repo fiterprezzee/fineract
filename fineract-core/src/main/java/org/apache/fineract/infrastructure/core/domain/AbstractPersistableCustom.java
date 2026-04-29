@@ -54,7 +54,7 @@ public abstract class AbstractPersistableCustom<T extends Serializable> implemen
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Getter(onMethod_ = @Override)
+    @Getter
     private T id;
 
     @Transient

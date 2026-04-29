@@ -243,7 +243,8 @@ bootJar {
 
 jib {
     from {
-        image = 'azul/zulu-openjdk-alpine:21'
+        // Using Zulu OpenJDK Debian-based image (not Alpine) which includes fontconfig and fonts for Pentaho reports
+        image = 'azul/zulu-openjdk-debian:21'
         platforms {
             platform {
                 architecture = System.getProperty("os.arch").equals("aarch64")?"arm64":"amd64"

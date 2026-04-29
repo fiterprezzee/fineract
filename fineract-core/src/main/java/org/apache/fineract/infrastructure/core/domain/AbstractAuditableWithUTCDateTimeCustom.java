@@ -61,7 +61,7 @@ public abstract class AbstractAuditableWithUTCDateTimeCustom<T extends Serializa
     private OffsetDateTime createdDate;
 
     @Column(name = LAST_MODIFIED_BY_DB_FIELD, nullable = false)
-    @Setter(onMethod_ = @Override)
+    @Setter
     private Long lastModifiedBy;
 
     @Column(name = LAST_MODIFIED_DATE_DB_FIELD, nullable = false)

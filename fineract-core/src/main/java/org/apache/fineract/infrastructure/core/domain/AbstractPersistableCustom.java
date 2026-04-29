@@ -59,7 +59,7 @@ public abstract class AbstractPersistableCustom<T extends Serializable> implemen
 
     @Transient
     @Setter(value = AccessLevel.NONE)
-    @Getter(onMethod_ = @Override)
+    @Getter
     private boolean isNew = true;
 
     @PrePersist

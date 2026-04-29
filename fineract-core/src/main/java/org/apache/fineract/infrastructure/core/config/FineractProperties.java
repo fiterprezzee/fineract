@@ -85,7 +85,7 @@ public class FineractProperties {
 
     private FineractModulesProperties module;
 
-    private FineractSqlValidationProperties sqlValidation;
+    private FineractSqlValidationProperties sqlValidation = new FineractSqlValidationProperties();
 
     private FineractCache cache;
 
@@ -626,8 +626,8 @@ public class FineractProperties {
     @Setter
     public static class FineractSqlValidationProperties {
 
-        private List<FineractSqlValidationPatternProperties> patterns;
-        private List<FineractSqlValidationProfileProperties> profiles;
+        private List<FineractSqlValidationPatternProperties> patterns = new ArrayList<>();
+        private List<FineractSqlValidationProfileProperties> profiles = new ArrayList<>();
     }
 
     @Getter
@@ -636,7 +636,7 @@ public class FineractProperties {
 
         private String name;
         private String description;
-        private List<FineractSqlValidationPatternReferenceProperties> patternRefs;
+        private List<FineractSqlValidationPatternReferenceProperties> patternRefs = new ArrayList<>();
         private Boolean enabled = true;
     }
 

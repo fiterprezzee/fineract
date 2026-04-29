@@ -229,8 +229,7 @@ dependencies {
     }
     testImplementation ('org.mockito:mockito-inline')
 
-    implementation(
-            'org.apache.groovy:groovy-all:4.0.12',
-            fileTree(dir: 'libs', include: '*.jar')
-            )
+   implementation 'org.apache.groovy:groovy-all:4.0.12'
+
+   runtimeOnly fileTree(dir: 'libs', include: '*.jar')
 }

@@ -231,5 +231,7 @@ dependencies {
 
     implementation 'org.apache.groovy:groovy-all:4.0.12'
 
+    // Pentaho reporting libs - compileOnly for compile-time access, runtimeOnly for execution
+    compileOnly fileTree(dir: 'libs', include: '*.jar')
     runtimeOnly fileTree(dir: 'libs', include: '*.jar')
 }

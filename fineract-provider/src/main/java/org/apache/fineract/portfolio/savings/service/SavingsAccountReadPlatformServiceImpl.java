@@ -1113,7 +1113,11 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
                     + "pd.receipt_number as receiptNumber, pd.bank_number as bankNumber,pd.routing_code as routingCode, "
                     + "sa.currency_code as currencyCode, sa.currency_digits as currencyDigits, sa.currency_multiplesof as inMultiplesOf, "
                     + "curr.name as currencyName, curr.internationalized_name_code as currencyNameCode, "
-                    + "curr.display_symbol as currencyDisplaySymbol, pt.value as paymentTypeName, " + "tr.is_manual as postInterestAsOn ";
+                    + "curr.display_symbol as currencyDisplaySymbol, pt.value as paymentTypeName, " + "tr.is_manual as postInterestAsOn, "
+                    + "tr.hold_transaction_id as holdTransactionId, tr.related_transaction_id as relatedTransactionId, "
+                    + "tr.transaction_sub_type as transactionSubType, tr.is_from_hold_release as isFromHoldRelease, "
+                    + "tr.remaining_hold_amount as remainingHoldAmount, tr.operation_type as operationType, "
+                    + "tr.originating_channel as originatingChannel, tr.gl_status as glStatus ";
         }
 
         protected static String buildFrom() {
@@ -1207,9 +1211,22 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
             }
             final String submittedByUsername = rs.getString("submittedByUsername");
             final String note = rs.getString("transactionNote");
-            return SavingsAccountTransactionData.create(id, transactionType, paymentDetailData, savingsId, accountNo, date, currency,
-                    amount, outstandingChargeAmount, runningBalance, reversed, transfer, submittedOnDate, postInterestAsOn,
-                    submittedByUsername, note, isReversal, originalTransactionId, lienTransaction, releaseTransactionId, reasonForBlock);
+            SavingsAccountTransactionData data = SavingsAccountTransactionData.create(id, transactionType, paymentDetailData, savingsId,
+                    accountNo, date, currency, amount, outstandingChargeAmount, runningBalance, reversed, transfer, submittedOnDate,
+                    postInterestAsOn, submittedByUsername, note, isReversal, originalTransactionId, lienTransaction, releaseTransactionId,
+                    reasonForBlock);
+
+            // Hold & Release Enhancement fields
+            data.setHoldTransactionId(JdbcSupport.getLong(rs, "holdTransactionId"));
+            data.setRelatedTransactionId(JdbcSupport.getLong(rs, "relatedTransactionId"));
+            data.setTransactionSubType(rs.getString("transactionSubType"));
+            data.setIsFromHoldRelease(rs.getBoolean("isFromHoldRelease"));
+            data.setRemainingHoldAmount(JdbcSupport.getBigDecimalDefaultToNullIfZero(rs, "remainingHoldAmount"));
+            data.setOperationType(rs.getString("operationType"));
+            data.setOriginatingChannel(rs.getString("originatingChannel"));
+            data.setGlStatus(rs.getString("glStatus"));
+
+            return data;
         }
     }
 

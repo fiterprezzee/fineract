@@ -48,6 +48,7 @@ import org.apache.fineract.organisation.monetary.domain.Money;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.paymentdetail.domain.PaymentDetail;
 import org.apache.fineract.portfolio.savings.SavingsAccountTransactionType;
+import org.apache.fineract.portfolio.savings.SavingsTransactionSubType;
 import org.apache.fineract.portfolio.savings.data.SavingsAccountTransactionEnumData;
 import org.apache.fineract.portfolio.savings.domain.interest.EndOfDayBalance;
 import org.apache.fineract.portfolio.savings.domain.interest.SavingsAccountTransactionDetailsForPostingPeriod;
@@ -137,6 +138,49 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
 
     @Column(name = "ref_no", nullable = true)
     private String refNo;
+
+    // Hold & Release Enhancement - New fields
+    @Column(name = "hold_transaction_id")
+    private Long holdTransactionId;
+
+    @Column(name = "related_transaction_id")
+    private Long relatedTransactionId;
+
+    @Column(name = "transaction_sub_type", length = 50)
+    private String transactionSubType;
+
+    @Column(name = "is_from_hold_release")
+    private Boolean isFromHoldRelease = false;
+
+    @Column(name = "is_gl_posted")
+    private Boolean isGLPosted = false;
+
+    @Column(name = "idempotency_key", length = 128)
+    private String idempotencyKey;
+
+    @Column(name = "remaining_hold_amount", scale = 6, precision = 19)
+    private BigDecimal remainingHoldAmount;
+
+    @Column(name = "operation_type", length = 30)
+    private String operationType;
+
+    @Column(name = "originating_channel", length = 30)
+    private String originatingChannel;
+
+    @Column(name = "gl_status", length = 20)
+    private String glStatus;
+
+    @Column(name = "hold_funds_on_hold_account_id")
+    private Long holdFundsOnHoldAccountId;
+
+    @Column(name = "hold_savings_control_account_id")
+    private Long holdSavingsControlAccountId;
+
+    @Column(name = "hold_gl_currency_code", length = 3)
+    private String holdGLCurrencyCode;
+
+    @Column(name = "hold_gl_account_type", length = 20)
+    private String holdGLAccountType;
 
     SavingsAccountTransaction() {}
 
@@ -616,6 +660,13 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         thisTransactionData.put("amount", this.amount);
         thisTransactionData.put("overdraftAmount", this.overdraftAmount);
 
+        // Hold & Release Enhancement: Include hold-related fields for GL posting
+        thisTransactionData.put("isFromHoldRelease", this.isFromHoldRelease != null && this.isFromHoldRelease);
+        thisTransactionData.put("isGLPosted", this.isGLPosted != null && this.isGLPosted);
+        thisTransactionData.put("holdTransactionId", this.holdTransactionId);
+        thisTransactionData.put("holdFundsOnHoldAccountId", this.holdFundsOnHoldAccountId);
+        thisTransactionData.put("holdSavingsControlAccountId", this.holdSavingsControlAccountId);
+
         if (this.paymentDetail != null) {
             thisTransactionData.put("paymentTypeId", this.paymentDetail.getPaymentType().getId());
         }
@@ -892,5 +943,133 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         return new SavingsAccountTransactionDetailsForPostingPeriod(getId(), this.dateOf, this.balanceEndDate, this.runningBalance,
                 this.amount, currency, this.balanceNumberOfDays, isDeposit(), isWithdrawal(), isAllowOverDraft,
                 isChargeTransactionAndNotReversed(), isDividendPayoutAndNotReversed());
+    }
+
+    // Hold & Release Enhancement - Getters and Setters
+
+    public Long getHoldTransactionId() {
+        return this.holdTransactionId;
+    }
+
+    public void setHoldTransactionId(Long holdTransactionId) {
+        this.holdTransactionId = holdTransactionId;
+    }
+
+    public Long getRelatedTransactionId() {
+        return this.relatedTransactionId;
+    }
+
+    public void setRelatedTransactionId(Long relatedTransactionId) {
+        this.relatedTransactionId = relatedTransactionId;
+    }
+
+    public SavingsTransactionSubType getTransactionSubType() {
+        return SavingsTransactionSubType.fromString(this.transactionSubType);
+    }
+
+    public void setTransactionSubType(SavingsTransactionSubType subType) {
+        this.transactionSubType = subType != null ? subType.getValue() : null;
+    }
+
+    public Boolean getIsFromHoldRelease() {
+        return this.isFromHoldRelease != null && this.isFromHoldRelease;
+    }
+
+    public void setIsFromHoldRelease(Boolean isFromHoldRelease) {
+        this.isFromHoldRelease = isFromHoldRelease;
+    }
+
+    public Boolean getIsGLPosted() {
+        return this.isGLPosted != null && this.isGLPosted;
+    }
+
+    public void setIsGLPosted(Boolean isGLPosted) {
+        this.isGLPosted = isGLPosted;
+    }
+
+    public String getIdempotencyKey() {
+        return this.idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public BigDecimal getRemainingHoldAmount() {
+        return this.remainingHoldAmount;
+    }
+
+    public void setRemainingHoldAmount(BigDecimal remainingHoldAmount) {
+        this.remainingHoldAmount = remainingHoldAmount;
+    }
+
+    public String getOperationType() {
+        return this.operationType;
+    }
+
+    public void setOperationType(String operationType) {
+        this.operationType = operationType;
+    }
+
+    public String getOriginatingChannel() {
+        return this.originatingChannel;
+    }
+
+    public void setOriginatingChannel(String originatingChannel) {
+        this.originatingChannel = originatingChannel;
+    }
+
+    public String getGlStatus() {
+        return this.glStatus;
+    }
+
+    public void setGlStatus(String glStatus) {
+        this.glStatus = glStatus;
+    }
+
+    public Long getHoldFundsOnHoldAccountId() {
+        return this.holdFundsOnHoldAccountId;
+    }
+
+    public void setHoldFundsOnHoldAccountId(Long holdFundsOnHoldAccountId) {
+        this.holdFundsOnHoldAccountId = holdFundsOnHoldAccountId;
+    }
+
+    public Long getHoldSavingsControlAccountId() {
+        return this.holdSavingsControlAccountId;
+    }
+
+    public void setHoldSavingsControlAccountId(Long holdSavingsControlAccountId) {
+        this.holdSavingsControlAccountId = holdSavingsControlAccountId;
+    }
+
+    public String getHoldGLCurrencyCode() {
+        return this.holdGLCurrencyCode;
+    }
+
+    public void setHoldGLCurrencyCode(String holdGLCurrencyCode) {
+        this.holdGLCurrencyCode = holdGLCurrencyCode;
+    }
+
+    public String getHoldGLAccountType() {
+        return this.holdGLAccountType;
+    }
+
+    public void setHoldGLAccountType(String holdGLAccountType) {
+        this.holdGLAccountType = holdGLAccountType;
+    }
+
+    /**
+     * Check if this is a hold/release related withdrawal
+     */
+    public boolean isFromHoldRelease() {
+        return Boolean.TRUE.equals(this.isFromHoldRelease);
+    }
+
+    /**
+     * Check if GL was posted for this transaction
+     */
+    public boolean isGLPosted() {
+        return Boolean.TRUE.equals(this.isGLPosted);
     }
 }

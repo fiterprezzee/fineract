@@ -243,7 +243,9 @@ bootJar {
 
 jib {
     from {
-        image = 'azul/zulu-openjdk-alpine:21'
+        // Using Zulu OpenJDK Ubuntu-based image which includes fontconfig and fonts for Pentaho reports
+        // Note: Alpine and Debian variants do NOT include fonts
+        image = 'azul/zulu-openjdk:21'
         platforms {
             platform {
                 architecture = System.getProperty("os.arch").equals("aarch64")?"arm64":"amd64"
@@ -264,7 +266,7 @@ jib {
         creationTime = 'USE_CURRENT_TIMESTAMP'
         mainClass = 'org.apache.fineract.ServerApplication'
         extraClasspath = ['/app/plugins/*']
-        args = [
+        jvmFlags = [
             '-Duser.home=/tmp',
             '-Dfile.encoding=UTF-8',
             '-Duser.timezone=UTC',
@@ -272,7 +274,7 @@ jib {
         ]
         ports = ['8080/tcp', '8443/tcp']
         labels = [maintainer: 'Aleksandar Vidakovic <aleks@apache.org>']
-        user = 'nobody:nogroup'
+        user = 'root'
     }
 
     extraDirectories {

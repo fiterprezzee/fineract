@@ -232,6 +232,18 @@ dependencies {
     implementation 'org.apache.groovy:groovy-all:4.0.12'
 
     // Pentaho reporting libs - compileOnly for compile-time access, runtimeOnly for execution
-    compileOnly fileTree(dir: 'libs', include: '*.jar')
-    runtimeOnly fileTree(dir: 'libs', include: '*.jar')
+    // Exclude conflicting JARs:
+    // - postgresql: conflicts with project's newer version (42.7.8 vs 42.2.12)
+    // - bsh-1.3.0: conflicts with bsh-2.0b6 from Gradle cache
+    // - wizard-xul-9.2.0.0-SNAPSHOT: duplicate of wizard-xul-9.4.0.0-343
+    compileOnly fileTree(dir: 'libs', include: '*.jar', excludes: [
+        'postgresql-*.jar',
+        'bsh-1.3.0.jar',
+        'wizard-xul-9.2.0.0-SNAPSHOT.jar'
+    ])
+    runtimeOnly fileTree(dir: 'libs', include: '*.jar', excludes: [
+        'postgresql-*.jar',
+        'bsh-1.3.0.jar',
+        'wizard-xul-9.2.0.0-SNAPSHOT.jar'
+    ])
 }

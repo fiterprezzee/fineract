@@ -275,6 +275,21 @@ jib {
         user = 'nobody:nogroup'
     }
 
+    extraDirectories {
+        paths {
+            path {
+                from = "${buildDir}/jib-extra-directory"
+                into = '/'
+            }
+        }
+        permissions = [
+            '/.mifosx': '755',
+            '/.mifosx/pentahoReports': '755',
+            '/.mifosx/pentahoReports/pentahoReportsPostgres': '755',
+            '/.mifosx/pentahoReports/pentahoReportsPostgres/*': '644'
+        ]
+    }
+
     allowInsecureRegistries = true
 }
 
@@ -324,13 +339,13 @@ tasks.register('copyPentahoReports', Copy) {
 }
 
 // Task to prepare reports for Docker/Jib deployment
-// Reports are placed at /app/pentahoReports in the container
-// Set FINERACT_PENTAHO_REPORTS_PATH=/app in your Kubernetes deployment
+// Reports are placed at /.mifosx/pentahoReports/pentahoReportsPostgres in the container
+// Set env FINERACT_PENTAHO_REPORTS_PATH=/.mifosx/pentahoReports in Kubernetes YAML
 tasks.register('preparePentahoReportsForDocker', Copy) {
     description = 'Copies Pentaho reports to a location for Docker image'
     dependsOn copyPentahoReports
     from "${buildDir}/pentahoReports"
-    into "${buildDir}/dd-agent/app/pentahoReportsPostgres"
+    into "${buildDir}/jib-extra-directory/.mifosx/pentahoReports/pentahoReportsPostgres"
 }
 
 // Ensure Pentaho reports are included in Docker builds

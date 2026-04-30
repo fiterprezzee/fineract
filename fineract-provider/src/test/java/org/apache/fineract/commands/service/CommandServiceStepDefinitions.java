@@ -35,7 +35,6 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.domain.FineractRequestContextHolder;
-import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
@@ -55,7 +54,6 @@ public class CommandServiceStepDefinitions implements En {
 
     @SuppressWarnings("unchecked")
     public CommandServiceStepDefinitions() {
-        // Set up retry infrastructure manually
         RetryRegistry retryRegistry = RetryRegistry.ofDefaults();
 
         FineractProperties fineractProperties = new FineractProperties();
@@ -75,11 +73,10 @@ public class CommandServiceStepDefinitions implements En {
         RetryConfigurationAssembler retryConfigurationAssembler = new RetryConfigurationAssembler(retryRegistry, fineractProperties,
                 contextHolder);
 
+        ThrowingSupplier throwingSupplier = new ThrowingSupplier();
+
         Given("/^A command source write service$/", () -> {
-            FineractRequestContextHolder spyContextHolder = Mockito.spy(new FineractRequestContextHolder());
-            Mockito.when(spyContextHolder.getAttribute(Mockito.any())).thenThrow(new CannotAcquireLockException("BLOW IT UP!!!"))
-                    .thenThrow(new ObjectOptimisticLockingFailureException("Dummy", new RuntimeException("BLOW IT UP!!!")))
-                    .thenThrow(new RollbackTransactionNotApprovedException(1L, null));
+            throwingSupplier.reset();
 
             Retry retry1 = retryConfigurationAssembler.getRetryConfigurationForExecuteCommand();
             assertNotNull(retry1);
@@ -89,22 +86,7 @@ public class CommandServiceStepDefinitions implements En {
                 CommandServiceStepDefinitions.this.retryEvent = event;
             });
 
-            CommandProcessingService processAndLogCommandService = new CommandProcessingService() {
-
-                @Override
-                public CommandProcessingResult executeCommand(CommandWrapper wrapper, JsonCommand command, boolean isApprovedByChecker) {
-                    return retry1.executeSupplier(() -> {
-                        spyContextHolder.getAttribute("test");
-                        return CommandProcessingResult.empty();
-                    });
-                }
-
-                @Override
-                public boolean validateRollbackCommand(CommandWrapper commandWrapper,
-                        org.apache.fineract.useradministration.domain.AppUser user) {
-                    return false;
-                }
-            };
+            CommandProcessingService processAndLogCommandService = new RetryCommandProcessingService(retry1, throwingSupplier);
 
             this.commandSourceWritePlatformService = new DummyCommandSourceWriteService(processAndLogCommandService);
             this.command = new DummyCommand();
@@ -114,7 +96,6 @@ public class CommandServiceStepDefinitions implements En {
             try {
                 this.commandSourceWritePlatformService.logCommandSource(command);
             } catch (Exception e) {
-                // TODO: this exception is OK for now; we need to fix the whole tenant based data source setup
                 log.warn("At the moment mocking data access is so incredibly hard... it's easier to just ignore this exception: {}",
                         e.getMessage());
             }
@@ -129,6 +110,50 @@ public class CommandServiceStepDefinitions implements En {
         Then("/^The command processing service execute function should be called 2 times$/", () -> {
             assertEquals(2, counter.get());
         });
+    }
+
+    private static class ThrowingSupplier {
+
+        private final AtomicInteger callCount = new AtomicInteger(0);
+
+        void reset() {
+            callCount.set(0);
+        }
+
+        Object call() {
+            int call = callCount.incrementAndGet();
+            if (call == 1) {
+                throw new CannotAcquireLockException("BLOW IT UP!!!");
+            } else if (call == 2) {
+                throw new ObjectOptimisticLockingFailureException("Dummy", new RuntimeException("BLOW IT UP!!!"));
+            } else {
+                throw new RollbackTransactionNotApprovedException(1L, null);
+            }
+        }
+    }
+
+    private static class RetryCommandProcessingService implements CommandProcessingService {
+
+        private final Retry retry;
+        private final ThrowingSupplier supplier;
+
+        RetryCommandProcessingService(Retry retry, ThrowingSupplier supplier) {
+            this.retry = retry;
+            this.supplier = supplier;
+        }
+
+        @Override
+        public CommandProcessingResult executeCommand(CommandWrapper wrapper, JsonCommand command, boolean isApprovedByChecker) {
+            return retry.executeSupplier(() -> {
+                supplier.call();
+                return CommandProcessingResult.empty();
+            });
+        }
+
+        @Override
+        public boolean validateRollbackCommand(CommandWrapper commandWrapper, org.apache.fineract.useradministration.domain.AppUser user) {
+            return false;
+        }
     }
 
     public static class DummyCommand extends CommandWrapper {

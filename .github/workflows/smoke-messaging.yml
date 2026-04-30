@@ -43,6 +43,28 @@ jobs:
       - name: Start the ${{ matrix.messaging }} Stack
         run: docker compose -f ${{ matrix.compose_file }} up --scale fineract-worker=1 -d
 
+      - name: Wait for Fineract Manager to be healthy
+        run: |
+          echo "Waiting for fineract-manager to become healthy..."
+          timeout 300 bash -c 'until docker inspect --format="{{.State.Health.Status}}" fineract-fineract-manager-1 2>/dev/null | grep -q "healthy"; do
+            STATUS=$(docker inspect --format="{{.State.Health.Status}}" fineract-fineract-manager-1 2>/dev/null || echo "not-running")
+            echo "Status: $STATUS"
+            if [ "$STATUS" = "unhealthy" ]; then
+              echo "Container is unhealthy!"
+              exit 1
+            fi
+            sleep 10
+          done'
+          echo "Fineract Manager is healthy!"
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          echo "=== Fineract Manager Logs ==="
+          docker logs fineract-fineract-manager-1 2>&1 | tail -200
+          echo "=== Docker PS ==="
+          docker ps -a
+
       - name: Check the stack
         run: docker ps
 

@@ -113,7 +113,28 @@ public class AccrualBasedAccountingProcessorForSavings implements AccountingProc
 
             /** Handle Deposits and reversals of deposits **/
             else if (savingsTransactionDTO.getTransactionType().isDeposit()) {
-                if (savingsTransactionDTO.isAccountTransfer()) {
+                if (savingsTransactionDTO.isFromHoldRelease()) {
+                    // Hold & Release Enhancement (Qi-cards style): Contra deposit
+                    // GL: DR Funds on Hold, CR Savings Control (reverse the hold reclassification)
+                    if (savingsTransactionDTO.isHoldGLPosted()) {
+                        Long fundsOnHoldAccountId = savingsTransactionDTO.getHoldFundsOnHoldAccountId();
+                        if (fundsOnHoldAccountId != null) {
+                            this.helper.createCashBasedJournalEntriesAndReversalsForSavingsWithAccountId(office, currencyCode,
+                                    fundsOnHoldAccountId, AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId,
+                                    paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
+                        } else {
+                            this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                                    AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(),
+                                    AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId, paymentTypeId, savingsId,
+                                    transactionId, transactionDate, amount, isReversal);
+                        }
+                    } else {
+                        this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                                AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(),
+                                AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId, paymentTypeId, savingsId,
+                                transactionId, transactionDate, amount, isReversal);
+                    }
+                } else if (savingsTransactionDTO.isAccountTransfer()) {
                     this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
                             FinancialActivity.LIABILITY_TRANSFER.getValue(), AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(),
                             savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
@@ -138,35 +159,12 @@ public class AccrualBasedAccountingProcessorForSavings implements AccountingProc
                             AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), FinancialActivity.LIABILITY_TRANSFER.getValue(),
                             savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
                 } else if (savingsTransactionDTO.isFromHoldRelease()) {
-                    // Hold & Release Enhancement (Qi-cards style): 2-step GL posting
-                    // Step 1 - Contra: DR Funds on Hold, CR Savings Control (reverse the hold reclassification)
-                    // Step 2 - Posting: DR Savings Control, CR Savings Reference (actual deduction)
-                    if (savingsTransactionDTO.isHoldGLPosted()) {
-                        Long fundsOnHoldAccountId = savingsTransactionDTO.getHoldFundsOnHoldAccountId();
-                        if (fundsOnHoldAccountId != null) {
-                            // Step 1: Contra - reverse hold using persisted account
-                            this.helper.createCashBasedJournalEntriesAndReversalsForSavingsWithAccountId(office, currencyCode,
-                                    fundsOnHoldAccountId, AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId,
-                                    paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
-                        } else {
-                            // Step 1: Contra - reverse hold using current mapping
-                            this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
-                                    AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(),
-                                    AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId, paymentTypeId, savingsId,
-                                    transactionId, transactionDate, amount, isReversal);
-                        }
-                        // Step 2: Posting - actual deduction
-                        this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
-                                AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(),
-                                AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(), savingsProductId, paymentTypeId, savingsId,
-                                transactionId, transactionDate, amount, isReversal);
-                    } else {
-                        // OLD hold (no GL posted) → use normal withdrawal GL
-                        this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
-                                AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(),
-                                AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(), savingsProductId, paymentTypeId, savingsId,
-                                transactionId, transactionDate, amount, isReversal);
-                    }
+                    // Hold & Release Enhancement (Qi-cards style): Withdrawal posting (actual deduction)
+                    // GL: DR Savings Control, CR Savings Reference
+                    // Note: The contra entry is handled by the separate contra deposit transaction
+                    this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                            AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(),
+                            savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
                 } else {
                     this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
                             AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(),

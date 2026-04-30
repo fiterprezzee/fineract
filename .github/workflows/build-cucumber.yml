@@ -61,7 +61,7 @@ jobs:
               ./gradlew --no-daemon build -x test -x cucumber -x doc
               ;;
             cucumber)
-              ./gradlew --no-daemon cucumber -x :fineract-e2e-tests-runner:cucumber -x checkstyleJmh -x checkstyleMain -x checkstyleTest -x spotlessCheck -x spotlessApply -x spotbugsMain -x spotbugsTest -x javadoc -x javadocJar -x modernizer
+                ./gradlew --no-daemon -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError" cucumber -x :fineract-e2e-tests-runner:cucumber -x checkstyleJmh -x checkstyleMain -x checkstyleTest -x spotlessCheck -x spotlessApply -x spotbugsMain -x spotbugsTest
               ;;
           esac
 

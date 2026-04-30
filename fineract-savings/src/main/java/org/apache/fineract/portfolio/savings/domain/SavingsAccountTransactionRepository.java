@@ -67,26 +67,12 @@ public interface SavingsAccountTransactionRepository
     Optional<SavingsAccountTransaction> findByIdWithLock(@Param("transactionId") Long transactionId);
 
     /**
-     * Find transaction by hold transaction ID and idempotency key (scoped idempotency)
-     */
-    @Query("select t from SavingsAccountTransaction t where t.holdTransactionId = :holdId and t.idempotencyKey = :key")
-    Optional<SavingsAccountTransaction> findByHoldTransactionIdAndIdempotencyKey(@Param("holdId") Long holdId, @Param("key") String key);
-
-    /**
      * Atomic decrement of remaining hold amount with race condition protection
      */
     @Modifying
     @Query("UPDATE SavingsAccountTransaction t SET t.remainingHoldAmount = t.remainingHoldAmount - :amount "
             + "WHERE t.id = :holdId AND t.remainingHoldAmount >= :amount")
     int decrementRemainingHoldAmount(@Param("holdId") Long holdId, @Param("amount") BigDecimal amount);
-
-    /**
-     * Atomic increment of remaining hold amount for reversal (with cap protection)
-     */
-    @Modifying
-    @Query("UPDATE SavingsAccountTransaction t SET t.remainingHoldAmount = t.remainingHoldAmount + :amount "
-            + "WHERE t.id = :holdId AND t.remainingHoldAmount + :amount <= t.amount")
-    int incrementRemainingHoldAmount(@Param("holdId") Long holdId, @Param("amount") BigDecimal amount);
 
     /**
      * Check if active (non-reversed) child transactions exist for a hold
@@ -101,11 +87,4 @@ public interface SavingsAccountTransactionRepository
     @Query("SELECT t.id FROM SavingsAccountTransaction t "
             + "WHERE t.relatedTransactionId = :releaseId AND t.typeOf = 2 AND t.reversed = false")
     Optional<Long> findActiveWithdrawalForRelease(@Param("releaseId") Long releaseId);
-
-    /**
-     * Update GL status for a transaction
-     */
-    @Modifying
-    @Query("UPDATE SavingsAccountTransaction t SET t.glStatus = :status WHERE t.id = :transactionId")
-    int updateGlStatus(@Param("transactionId") Long transactionId, @Param("status") String status);
 }

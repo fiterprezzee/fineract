@@ -140,19 +140,9 @@ public class AccrualBasedAccountingProcessorForSavings implements AccountingProc
                 } else if (savingsTransactionDTO.isFromHoldRelease()) {
                     // Hold & Release Enhancement: 2-step GL posting within withdrawal
                     // Step 1 (Contra): DR Funds on Hold, CR Savings Control (reverses the hold GL)
-                    if (savingsTransactionDTO.isHoldGLPosted()) {
-                        Long fundsOnHoldAccountId = savingsTransactionDTO.getHoldFundsOnHoldAccountId();
-                        if (fundsOnHoldAccountId != null) {
-                            this.helper.createCashBasedJournalEntriesAndReversalsForSavingsWithAccountId(office, currencyCode,
-                                    fundsOnHoldAccountId, AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId,
-                                    paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
-                        } else {
-                            this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
-                                    AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(),
-                                    AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId, paymentTypeId, savingsId,
-                                    transactionId, transactionDate, amount, isReversal);
-                        }
-                    }
+                    this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                            AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(), AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(),
+                            savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
                     // Step 2 (Posting): DR Savings Control, CR Savings Reference (actual deduction)
                     this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
                             AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(),

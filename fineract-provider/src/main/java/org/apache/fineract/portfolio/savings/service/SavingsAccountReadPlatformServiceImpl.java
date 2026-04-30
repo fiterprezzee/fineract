@@ -1117,7 +1117,7 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
                     + "tr.hold_transaction_id as holdTransactionId, tr.related_transaction_id as relatedTransactionId, "
                     + "tr.transaction_sub_type as transactionSubType, tr.is_from_hold_release as isFromHoldRelease, "
                     + "tr.remaining_hold_amount as remainingHoldAmount, tr.operation_type as operationType, "
-                    + "tr.originating_channel as originatingChannel, tr.gl_status as glStatus ";
+                    + "tr.originating_channel as originatingChannel ";
         }
 
         protected static String buildFrom() {
@@ -1224,7 +1224,6 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
             data.setRemainingHoldAmount(JdbcSupport.getBigDecimalDefaultToNullIfZero(rs, "remainingHoldAmount"));
             data.setOperationType(rs.getString("operationType"));
             data.setOriginatingChannel(rs.getString("originatingChannel"));
-            data.setGlStatus(rs.getString("glStatus"));
 
             return data;
         }

@@ -260,15 +260,10 @@ public class AccountingProcessorHelper {
             final Boolean isFromHoldReleaseObj = (Boolean) map.get("isFromHoldRelease");
             final boolean isFromHoldRelease = isFromHoldReleaseObj != null && isFromHoldReleaseObj;
             final Long holdTransactionId = (Long) map.get("holdTransactionId");
-            final Boolean isGLPostedObj = (Boolean) map.get("isGLPosted");
-            final boolean isHoldGLPosted = isGLPostedObj != null && isGLPostedObj;
-            final Long holdFundsOnHoldAccountId = (Long) map.get("holdFundsOnHoldAccountId");
-            final Long holdSavingsControlAccountId = (Long) map.get("holdSavingsControlAccountId");
 
             final SavingsTransactionDTO transaction = new SavingsTransactionDTO(transactionOfficeId, paymentTypeId, transactionId,
                     transactionDate, transactionType, amount, reversed, feePayments, penaltyPayments, overdraftAmount, isAccountTransfer,
-                    taxPayments, isFromHoldRelease, holdTransactionId, isHoldGLPosted, holdFundsOnHoldAccountId,
-                    holdSavingsControlAccountId);
+                    taxPayments, isFromHoldRelease, holdTransactionId);
 
             newSavingsTransactions.add(transaction);
 
@@ -473,43 +468,6 @@ public class AccountingProcessorHelper {
         }
         createJournalEntriesForSavings(office, currencyCode, accountTypeToDebitId, accountTypeToCreditId, savingsProductId, paymentTypeId,
                 loanId, transactionId, transactionDate, amount);
-    }
-
-    /**
-     * Hold & Release Enhancement: Creates journal entries using specific account IDs. Used when the GL account ID is
-     * stored on the hold transaction for symmetry.
-     *
-     * @param office
-     * @param currencyCode
-     * @param debitAccountId
-     *            The specific GL account ID to debit
-     * @param accountTypeToBeCredited
-     *            Enum of the placeholder of the GLAccount to be credited
-     * @param savingsProductId
-     * @param paymentTypeId
-     * @param savingsId
-     * @param transactionId
-     * @param transactionDate
-     * @param amount
-     * @param isReversal
-     */
-    public void createCashBasedJournalEntriesAndReversalsForSavingsWithAccountId(final Office office, final String currencyCode,
-            final Long debitAccountId, final Integer accountTypeToBeCredited, final Long savingsProductId, final Long paymentTypeId,
-            final Long savingsId, final String transactionId, final LocalDate transactionDate, final BigDecimal amount,
-            final Boolean isReversal) {
-
-        final GLAccount debitAccount = this.glAccountRepository.findById(debitAccountId)
-                .orElseThrow(() -> new RuntimeException("GL Account not found: " + debitAccountId));
-        final GLAccount creditAccount = getLinkedGLAccountForSavingsProduct(savingsProductId, accountTypeToBeCredited, paymentTypeId);
-
-        if (isReversal) {
-            // Reverse: debit the credit account, credit the debit account
-            createDebitJournalEntryForSavings(office, currencyCode, creditAccount, savingsId, transactionId, transactionDate, amount);
-            createCreditJournalEntryForSavings(office, currencyCode, debitAccount, savingsId, transactionId, transactionDate, amount);
-        } else {
-            createDebitJournalEntryForSavings(office, currencyCode, debitAccount, savingsId, transactionId, transactionDate, amount);
-            createCreditJournalEntryForSavings(office, currencyCode, creditAccount, savingsId, transactionId, transactionDate, amount);
-        }
     }
 
     /**

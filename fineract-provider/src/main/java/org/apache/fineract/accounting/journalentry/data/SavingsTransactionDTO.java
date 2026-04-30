@@ -48,9 +48,6 @@ public class SavingsTransactionDTO {
     // Hold & Release Enhancement fields
     private final boolean isFromHoldRelease;
     private final Long holdTransactionId;
-    private final boolean isHoldGLPosted;
-    private final Long holdFundsOnHoldAccountId;
-    private final Long holdSavingsControlAccountId;
 
     /**
      * Original constructor for backward compatibility
@@ -60,7 +57,7 @@ public class SavingsTransactionDTO {
             final List<ChargePaymentDTO> feePayments, final List<ChargePaymentDTO> penaltyPayments, final BigDecimal overdraftAmount,
             final boolean isAccountTransfer, final List<TaxPaymentDTO> taxPayments) {
         this(officeId, paymentTypeId, transactionId, transactionDate, transactionType, amount, reversed, feePayments, penaltyPayments,
-                overdraftAmount, isAccountTransfer, taxPayments, false, null, false, null, null);
+                overdraftAmount, isAccountTransfer, taxPayments, false, null);
     }
 
     /**
@@ -70,8 +67,7 @@ public class SavingsTransactionDTO {
             final SavingsAccountTransactionEnumData transactionType, final BigDecimal amount, final boolean reversed,
             final List<ChargePaymentDTO> feePayments, final List<ChargePaymentDTO> penaltyPayments, final BigDecimal overdraftAmount,
             final boolean isAccountTransfer, final List<TaxPaymentDTO> taxPayments, final boolean isFromHoldRelease,
-            final Long holdTransactionId, final boolean isHoldGLPosted, final Long holdFundsOnHoldAccountId,
-            final Long holdSavingsControlAccountId) {
+            final Long holdTransactionId) {
         this.officeId = officeId;
         this.paymentTypeId = paymentTypeId;
         this.transactionId = transactionId;
@@ -86,9 +82,6 @@ public class SavingsTransactionDTO {
         this.taxPayments = taxPayments;
         this.isFromHoldRelease = isFromHoldRelease;
         this.holdTransactionId = holdTransactionId;
-        this.isHoldGLPosted = isHoldGLPosted;
-        this.holdFundsOnHoldAccountId = holdFundsOnHoldAccountId;
-        this.holdSavingsControlAccountId = holdSavingsControlAccountId;
     }
 
     public boolean isOverdraftTransaction() {
@@ -97,9 +90,5 @@ public class SavingsTransactionDTO {
 
     public boolean isFromHoldRelease() {
         return this.isFromHoldRelease;
-    }
-
-    public boolean isHoldGLPosted() {
-        return this.isHoldGLPosted;
     }
 }

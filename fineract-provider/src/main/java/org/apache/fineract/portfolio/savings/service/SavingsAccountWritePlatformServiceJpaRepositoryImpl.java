@@ -1803,9 +1803,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
                 backdatedTxnsAllowedTill);
 
-        // Mark GL as posted
-        transaction.setIsGLPosted(true);
-        transaction.setGlStatus("COMPLETED");
         this.savingsAccountTransactionRepository.save(transaction);
 
         if (backdatedTxnsAllowedTill) {
@@ -1867,7 +1864,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         releaseTxn.setRelatedTransactionId(holdTransaction.getId());
         releaseTxn.setOperationType("USER_RELEASE");
         releaseTxn.setOriginatingChannel("API");
-        releaseTxn.setGlStatus("NOT_APPLICABLE"); // Release has no GL
 
         this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(releaseTxn.getTransactionDate(), account);
 
@@ -1894,17 +1890,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         withdrawalTxn.setTransactionSubType(org.apache.fineract.portfolio.savings.SavingsTransactionSubType.HOLD_RELEASE_WITHDRAWAL);
         withdrawalTxn.setOperationType("SYSTEM_WITHDRAWAL");
         withdrawalTxn.setOriginatingChannel("API");
-
-        // Populate GL account IDs from HOLD transaction for GL posting
-        if (holdTransaction.getHoldFundsOnHoldAccountId() != null) {
-            withdrawalTxn.setHoldFundsOnHoldAccountId(holdTransaction.getHoldFundsOnHoldAccountId());
-        }
-        if (holdTransaction.getHoldSavingsControlAccountId() != null) {
-            withdrawalTxn.setHoldSavingsControlAccountId(holdTransaction.getHoldSavingsControlAccountId());
-        }
-
-        // This tells the GL processor whether to use 2-step posting (hold had GL) or simple withdrawal
-        withdrawalTxn.setIsGLPosted(holdTransaction.isGLPosted());
 
         // Set running balance for withdrawal (after deduction)
         Money withdrawalRunningBalance = runningBalance.minus(releaseAmount);
@@ -1941,8 +1926,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
                 backdatedTxnsAllowedTill);
 
         // Mark withdrawal GL status and flag as GL posted
-        withdrawalTxn.setGlStatus("COMPLETED");
-        withdrawalTxn.setIsGLPosted(true);
         this.savingsAccountTransactionRepository.save(withdrawalTxn);
 
         if (backdatedTxnsAllowedTill) {

@@ -36,16 +36,9 @@
             <column name="related_transaction_id" type="BIGINT"/>
             <column name="transaction_sub_type" type="VARCHAR(50)" defaultValue="NORMAL"/>
             <column name="is_from_hold_release" type="BOOLEAN" defaultValueBoolean="false"/>
-            <column name="is_gl_posted" type="BOOLEAN" defaultValueBoolean="false"/>
-            <column name="idempotency_key" type="VARCHAR(128)"/>
             <column name="remaining_hold_amount" type="DECIMAL(19,6)"/>
             <column name="operation_type" type="VARCHAR(30)"/>
             <column name="originating_channel" type="VARCHAR(30)"/>
-            <column name="gl_status" type="VARCHAR(20)" defaultValue="NOT_APPLICABLE"/>
-            <column name="hold_funds_on_hold_account_id" type="BIGINT"/>
-            <column name="hold_savings_control_account_id" type="BIGINT"/>
-            <column name="hold_gl_currency_code" type="VARCHAR(3)"/>
-            <column name="hold_gl_account_type" type="VARCHAR(20)"/>
         </addColumn>
     </changeSet>
 
@@ -84,32 +77,6 @@
         </createIndex>
     </changeSet>
 
-    <!-- PostgreSQL-specific partial indexes -->
-    <changeSet author="fineract" id="4" dbms="postgresql">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="uk_hold_operation_idempotency"/>
-            </not>
-        </preConditions>
-        <sql>
-            CREATE UNIQUE INDEX uk_hold_operation_idempotency
-            ON m_savings_account_transaction(hold_transaction_id, idempotency_key, operation_type, originating_channel)
-            WHERE idempotency_key IS NOT NULL;
-        </sql>
-    </changeSet>
 
-    <!-- MySQL alternative - regular index without partial index support -->
-    <changeSet author="fineract" id="5l" dbms="mysql,mariadb">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_hold_idempotency"/>
-            </not>
-        </preConditions>
-        <createIndex tableName="m_savings_account_transaction" indexName="idx_hold_idempotency">
-            <column name="hold_transaction_id"/>
-            <column name="idempotency_key"/>
-            <column name="operation_type"/>
-        </createIndex>
-    </changeSet>
 
 </databaseChangeLog>

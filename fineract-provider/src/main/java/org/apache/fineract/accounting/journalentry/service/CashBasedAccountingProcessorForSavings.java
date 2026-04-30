@@ -134,18 +134,9 @@ public class CashBasedAccountingProcessorForSavings implements AccountingProcess
                 } else if (savingsTransactionDTO.isFromHoldRelease()) {
                     // Hold & Release Enhancement: 2-step GL posting within withdrawal
                     // Step 1 (Contra): DR Funds on Hold, CR Savings Control (reverses the hold GL)
-                    if (savingsTransactionDTO.isHoldGLPosted()) {
-                        Long fundsOnHoldAccountId = savingsTransactionDTO.getHoldFundsOnHoldAccountId();
-                        if (fundsOnHoldAccountId != null) {
-                            this.helper.createCashBasedJournalEntriesAndReversalsForSavingsWithAccountId(office, currencyCode,
-                                    fundsOnHoldAccountId, CashAccountsForSavings.SAVINGS_CONTROL.getValue(), savingsProductId,
-                                    paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
-                        } else {
-                            this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
-                                    CashAccountsForSavings.FUNDS_ON_HOLD.getValue(), CashAccountsForSavings.SAVINGS_CONTROL.getValue(),
-                                    savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
-                        }
-                    }
+                    this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                            CashAccountsForSavings.FUNDS_ON_HOLD.getValue(), CashAccountsForSavings.SAVINGS_CONTROL.getValue(),
+                            savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
                     // Step 2 (Posting): DR Savings Control, CR Savings Reference (actual deduction)
                     this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
                             CashAccountsForSavings.SAVINGS_CONTROL.getValue(), CashAccountsForSavings.SAVINGS_REFERENCE.getValue(),

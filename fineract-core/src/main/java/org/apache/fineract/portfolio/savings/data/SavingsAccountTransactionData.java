@@ -89,7 +89,6 @@ public class SavingsAccountTransactionData implements Serializable {
     private BigDecimal remainingHoldAmount;
     private String operationType;
     private String originatingChannel;
-    private String glStatus;
 
     public void setHoldTransactionId(Long holdTransactionId) {
         this.holdTransactionId = holdTransactionId;
@@ -117,10 +116,6 @@ public class SavingsAccountTransactionData implements Serializable {
 
     public void setOriginatingChannel(String originatingChannel) {
         this.originatingChannel = originatingChannel;
-    }
-
-    public void setGlStatus(String glStatus) {
-        this.glStatus = glStatus;
     }
 
     // templates

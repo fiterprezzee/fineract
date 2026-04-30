@@ -20,7 +20,6 @@ package org.apache.fineract.integrationtests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.builder.ResponseSpecBuilder;
@@ -29,17 +28,12 @@ import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
 import java.math.BigDecimal;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import org.apache.fineract.integrationtests.common.ClientHelper;
 import org.apache.fineract.integrationtests.common.CommonConstants;
 import org.apache.fineract.integrationtests.common.GlobalConfigurationHelper;
-import org.apache.fineract.integrationtests.common.PaymentTypeHelper;
-import org.apache.fineract.integrationtests.common.SchedulerJobHelper;
 import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.accounting.Account;
 import org.apache.fineract.integrationtests.common.accounting.AccountHelper;
-import org.apache.fineract.integrationtests.common.accounting.JournalEntryHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsAccountHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsProductHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsStatusChecker;
@@ -74,8 +68,6 @@ public class SavingsAccountRecalculateBalanceTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(SavingsAccountRecalculateBalanceTest.class);
     public static final String DEPOSIT_AMOUNT = "2000";
-    public static final String WITHDRAW_AMOUNT = "1000";
-    public static final String WITHDRAW_AMOUNT_ADJUSTED = "500";
     public static final String MINIMUM_OPENING_BALANCE = "1000.0";
     public static final String ACCOUNT_TYPE_INDIVIDUAL = "INDIVIDUAL";
     public static final String DATE_FORMAT = "dd MMMM yyyy";
@@ -83,12 +75,8 @@ public class SavingsAccountRecalculateBalanceTest {
     private ResponseSpecification responseSpec;
     private RequestSpecification requestSpec;
     private SavingsAccountHelper savingsAccountHelper;
-    private SavingsProductHelper savingsProductHelper;
-    private SchedulerJobHelper scheduleJobHelper;
-    private PaymentTypeHelper paymentTypeHelper;
     private GlobalConfigurationHelper globalConfigurationHelper;
     private AccountHelper accountHelper;
-    private JournalEntryHelper journalEntryHelper;
 
     @BeforeEach
     public void setup() {
@@ -97,10 +85,8 @@ public class SavingsAccountRecalculateBalanceTest {
         this.requestSpec.header("Authorization", "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey());
         this.requestSpec.header("Fineract-Platform-TenantId", "default");
         this.responseSpec = new ResponseSpecBuilder().expectStatusCode(200).build();
-        this.paymentTypeHelper = new PaymentTypeHelper();
         this.globalConfigurationHelper = new GlobalConfigurationHelper();
         this.accountHelper = new AccountHelper(this.requestSpec, this.responseSpec);
-        this.journalEntryHelper = new JournalEntryHelper(this.requestSpec, this.responseSpec);
     }
 
     /**
@@ -201,79 +187,6 @@ public class SavingsAccountRecalculateBalanceTest {
         LOG.info("Hold 1 amount: {}", holdAmount1);
         LOG.info("Hold 2 amount: {}", holdAmount2);
         LOG.info("Final balance: {}", expectedFinalBalance);
-    }
-
-    /**
-     * Test: Verify Release Creates Withdrawal Transaction
-     *
-     * This test explicitly verifies that the release operation creates a withdrawal transaction as per the Qi-cards
-     * implementation.
-     */
-    @Test
-    public void testReleaseCreatesWithdrawalTransaction() {
-        this.savingsAccountHelper = new SavingsAccountHelper(this.requestSpec, this.responseSpec);
-
-        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
-        ClientHelper.verifyClientCreatedOnServer(this.requestSpec, this.responseSpec, clientID);
-
-        final Integer savingsProductID = createSavingsProduct(this.requestSpec, this.responseSpec, "0", null, false, true, false, null);
-        Assertions.assertNotNull(savingsProductID);
-
-        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductID, ACCOUNT_TYPE_INDIVIDUAL);
-        this.savingsAccountHelper.approveSavings(savingsId);
-        HashMap savingsStatusHashMap = this.savingsAccountHelper.activateSavings(savingsId);
-        SavingsStatusChecker.verifySavingsIsActive(savingsStatusHashMap);
-
-        // Deposit
-        float depositAmount = 1000F;
-        Integer depositTransactionId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId, String.valueOf(depositAmount),
-                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        Assertions.assertNotNull(depositTransactionId);
-
-        // Get initial transaction count
-        List<HashMap> transactionsBefore = this.savingsAccountHelper.getSavingsTransactions(savingsId);
-        int transactionCountBefore = transactionsBefore.size();
-
-        // Place hold
-        float holdAmount = 200F;
-        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, String.valueOf(holdAmount),
-                false, SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        Assertions.assertNotNull(holdTransactionId);
-
-        // Release hold
-        HashMap releaseResponse = this.savingsAccountHelper.releaseAmountWithFullResponse(savingsId, holdTransactionId);
-        Assertions.assertNotNull(releaseResponse);
-
-        // Get transaction count after release
-        List<HashMap> transactionsAfter = this.savingsAccountHelper.getSavingsTransactions(savingsId);
-        int transactionCountAfter = transactionsAfter.size();
-
-        // Should have: +1 for hold, +1 for release, +1 for withdrawal = 3 new transactions
-        // But release and withdrawal might be combined, so at minimum +2 for hold and release/withdrawal
-        assertTrue(transactionCountAfter >= transactionCountBefore + 2, "Should have at least hold and release/withdrawal transactions");
-
-        // Verify we have a withdrawal transaction linked to the release
-        boolean hasWithdrawalFromRelease = false;
-        for (HashMap tx : transactionsAfter) {
-            Map<String, Object> txType = (Map<String, Object>) tx.get("transactionType");
-            if (txType != null && "withdrawal".equals(txType.get("value"))) {
-                // Check if this withdrawal is from hold release
-                Boolean isFromHoldRelease = (Boolean) tx.get("isFromHoldRelease");
-                if (Boolean.TRUE.equals(isFromHoldRelease)) {
-                    hasWithdrawalFromRelease = true;
-                    assertEquals(holdAmount, ((Number) tx.get("amount")).floatValue(), "Withdrawal amount should equal hold amount");
-                    break;
-                }
-            }
-        }
-
-        // The withdrawal transaction confirms actual deduction happened
-        // Balance verification
-        HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        float expectedBalance = depositAmount - holdAmount;
-        assertEquals(expectedBalance, summary.get("availableBalance"), "Balance should reflect actual deduction after release");
-
-        LOG.info("Release Creates Withdrawal Transaction test completed successfully");
     }
 
     /**

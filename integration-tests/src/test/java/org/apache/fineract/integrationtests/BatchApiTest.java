@@ -2581,9 +2581,6 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
 
         HashMap accountDetails = savingsAccountHelper.getSavingsDetails(savingsId);
         ArrayList<HashMap<String, Object>> transactions = (ArrayList<HashMap<String, Object>>) accountDetails.get("transactions");
-        // After deposit (300) and hold (10), the running balance of the hold transaction is 300
-        // (hold doesn't change account balance, only available balance)
-        final float runningBalanceBeforeBatch = (float) transactions.get(0).get("runningBalance");
 
         final BatchRequest releaseAmountOnSavingAccountRequest = BatchHelper.releaseAmountOnSavingAccount(2L, 1L, holdAmountTransactionId);
         final BatchRequest withdrawSavingAccountRequest1 = BatchHelper.withdrawSavingAccount(3L, 1L, withdrawalAmount);
@@ -2648,25 +2645,27 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
         }
 
         // Verify release transaction running balance
-        // Release returns held amount to available, running balance = accountBalance
+        // Release running balance = accountBalance - onHold + releaseAmount = 300 - 10 + 10 = 300
+        // (release makes the held amount available again, so running balance returns to depositAmount)
         Assertions.assertNotNull(releaseTransaction, "Release transaction should exist");
-        assertEquals(runningBalanceBeforeBatch, releaseTransaction.get("runningBalance"),
-                "Verify running balance after release amount - should equal balance before batch");
+        assertEquals(depositAmount, ((Number) releaseTransaction.get("runningBalance")).floatValue(),
+                "Verify running balance after release amount - should equal deposit amount (release restores available balance)");
 
         // Verify system withdrawal from release (actual deduction)
         // This is the Qi-cards enhancement - release creates a withdrawal to deduct the amount
+        // System withdrawal running balance = depositAmount - holdAmount = 300 - 10 = 290
         Assertions.assertNotNull(systemWithdrawalFromRelease, "System withdrawal from release should exist");
-        assertEquals(runningBalanceBeforeBatch - holdAmount, systemWithdrawalFromRelease.get("runningBalance"),
+        assertEquals(depositAmount - holdAmount, ((Number) systemWithdrawalFromRelease.get("runningBalance")).floatValue(),
                 "Verify running balance after system withdrawal from release - actual deduction");
 
         // Verify user withdrawals
         Assertions.assertNotNull(userWithdrawal1, "First user withdrawal should exist");
-        assertEquals(runningBalanceBeforeBatch - holdAmount - withdrawalAmount, userWithdrawal1.get("runningBalance"),
+        assertEquals(depositAmount - holdAmount - withdrawalAmount, ((Number) userWithdrawal1.get("runningBalance")).floatValue(),
                 "Verify running balance after first user withdrawal");
 
         Assertions.assertNotNull(userWithdrawal2, "Second user withdrawal should exist");
-        assertEquals(runningBalanceBeforeBatch - holdAmount - withdrawalAmount - withdrawalAmount, userWithdrawal2.get("runningBalance"),
-                "Verify running balance after second user withdrawal");
+        assertEquals(depositAmount - holdAmount - withdrawalAmount - withdrawalAmount,
+                ((Number) userWithdrawal2.get("runningBalance")).floatValue(), "Verify running balance after second user withdrawal");
 
         // Verify final account balance
         HashMap summary = (HashMap) accountDetails.get("summary");

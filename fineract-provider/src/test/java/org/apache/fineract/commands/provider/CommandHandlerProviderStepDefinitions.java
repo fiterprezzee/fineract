@@ -19,23 +19,35 @@
 package org.apache.fineract.commands.provider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.cucumber.java8.En;
+import org.apache.fineract.commands.annotation.CommandType;
 import org.apache.fineract.commands.handler.NewCommandSourceHandler;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 
 public class CommandHandlerProviderStepDefinitions implements En {
 
-    @Autowired
     private CommandHandlerProvider commandHandlerProvider;
 
     private NewCommandSourceHandler commandHandler;
 
     private CommandProcessingResult result;
 
-    public CommandHandlerProviderStepDefinitions() {
+    public CommandHandlerProviderStepDefinitions() throws Exception {
+        ApplicationContext mockContext = mock(ApplicationContext.class);
+        when(mockContext.getBeanNamesForAnnotation(CommandType.class)).thenReturn(new String[] { "validCommandHandler" });
+        when(mockContext.findAnnotationOnBean("validCommandHandler", CommandType.class))
+                .thenReturn(ValidCommandHandler.class.getAnnotation(CommandType.class));
+        when(mockContext.getBean("validCommandHandler")).thenReturn(new ValidCommandHandler());
+
+        commandHandlerProvider = new CommandHandlerProvider();
+        commandHandlerProvider.setApplicationContext(mockContext);
+        commandHandlerProvider.afterPropertiesSet();
+
         Given("/^A command handler for entity (.*) and action (.*)$/", (String entity, String action) -> {
             this.commandHandler = this.commandHandlerProvider.getHandler(entity, action);
         });

@@ -20,40 +20,30 @@ package org.apache.fineract.commands.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.any;
 
 import io.cucumber.java8.En;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
 import io.github.resilience4j.retry.event.RetryEvent;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.fineract.commands.configuration.RetryConfigurationAssembler;
 import org.apache.fineract.commands.domain.CommandWrapper;
 import org.apache.fineract.commands.exception.RollbackTransactionNotApprovedException;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
+import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.domain.FineractRequestContextHolder;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
-import org.springframework.test.util.ReflectionTestUtils;
 
 public class CommandServiceStepDefinitions implements En {
 
     private static final Logger log = LoggerFactory.getLogger(CommandServiceStepDefinitions.class);
-
-    @Autowired
-    private CommandProcessingService processAndLogCommandService;
-
-    @Autowired
-    private RetryRegistry retryRegistry;
-
-    @Autowired
-    private RetryConfigurationAssembler retryConfigurationAssembler;
 
     private PortfolioCommandSourceWritePlatformService commandSourceWritePlatformService;
 
@@ -61,25 +51,63 @@ public class CommandServiceStepDefinitions implements En {
 
     private RetryEvent retryEvent;
 
-    private AtomicInteger counter = new AtomicInteger();
+    private final AtomicInteger counter = new AtomicInteger();
 
+    @SuppressWarnings("unchecked")
     public CommandServiceStepDefinitions() {
+        // Set up retry infrastructure manually
+        RetryRegistry retryRegistry = RetryRegistry.ofDefaults();
+
+        FineractProperties fineractProperties = new FineractProperties();
+        FineractProperties.RetryProperties retryProps = new FineractProperties.RetryProperties();
+        FineractProperties.RetryProperties.InstancesProperties instances = new FineractProperties.RetryProperties.InstancesProperties();
+        FineractProperties.RetryProperties.InstancesProperties.ExecuteCommandProperties execCmd = new FineractProperties.RetryProperties.InstancesProperties.ExecuteCommandProperties();
+        execCmd.setMaxAttempts(3);
+        execCmd.setWaitDuration(Duration.ofSeconds(1));
+        execCmd.setEnableExponentialBackoff(true);
+        execCmd.setExponentialBackoffMultiplier(2.0);
+        execCmd.setRetryExceptions(new Class[] { CannotAcquireLockException.class, ObjectOptimisticLockingFailureException.class });
+        instances.setExecuteCommand(execCmd);
+        retryProps.setInstances(instances);
+        fineractProperties.setRetry(retryProps);
+
+        FineractRequestContextHolder contextHolder = new FineractRequestContextHolder();
+        RetryConfigurationAssembler retryConfigurationAssembler = new RetryConfigurationAssembler(retryRegistry, fineractProperties,
+                contextHolder);
+
         Given("/^A command source write service$/", () -> {
-            this.commandSourceWritePlatformService = new DummyCommandSourceWriteService(processAndLogCommandService);
-            this.command = new DummyCommand();
-            FineractRequestContextHolder contextHolder = Mockito.spy(FineractRequestContextHolder.class);
-            ReflectionTestUtils.setField(processAndLogCommandService, "fineractRequestContextHolder", contextHolder);
-            Mockito.when(contextHolder.getAttribute(any(), any())).thenThrow(new CannotAcquireLockException("BLOW IT UP!!!"))
+            FineractRequestContextHolder spyContextHolder = Mockito.spy(new FineractRequestContextHolder());
+            Mockito.when(spyContextHolder.getAttribute(Mockito.any())).thenThrow(new CannotAcquireLockException("BLOW IT UP!!!"))
                     .thenThrow(new ObjectOptimisticLockingFailureException("Dummy", new RuntimeException("BLOW IT UP!!!")))
                     .thenThrow(new RollbackTransactionNotApprovedException(1L, null));
+
             Retry retry1 = retryConfigurationAssembler.getRetryConfigurationForExecuteCommand();
             assertNotNull(retry1);
             retry1.getEventPublisher().onRetry(event -> {
                 log.warn("... retry event: {}", event);
-
                 counter.incrementAndGet();
                 CommandServiceStepDefinitions.this.retryEvent = event;
             });
+
+            CommandProcessingService processAndLogCommandService = new CommandProcessingService() {
+
+                @Override
+                public CommandProcessingResult executeCommand(CommandWrapper wrapper, JsonCommand command, boolean isApprovedByChecker) {
+                    return retry1.executeSupplier(() -> {
+                        spyContextHolder.getAttribute("test");
+                        return CommandProcessingResult.empty();
+                    });
+                }
+
+                @Override
+                public boolean validateRollbackCommand(CommandWrapper commandWrapper,
+                        org.apache.fineract.useradministration.domain.AppUser user) {
+                    return false;
+                }
+            };
+
+            this.commandSourceWritePlatformService = new DummyCommandSourceWriteService(processAndLogCommandService);
+            this.command = new DummyCommand();
         });
 
         When("/^The user executes the command via a command write service with exceptions$/", () -> {

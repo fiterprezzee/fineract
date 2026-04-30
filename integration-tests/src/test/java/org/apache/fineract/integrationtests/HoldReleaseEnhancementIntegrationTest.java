@@ -56,9 +56,8 @@ import org.slf4j.LoggerFactory;
  * TS-06: Multiple Holds Same Account
  *
  * Verifies: - Transaction linkage (holdTransactionId, relatedTransactionId) - GL postings (HOLD: DR Savings Control, CR
- * Funds on Hold; CONTRA DEPOSIT: DR Funds on Hold, CR Savings Control; WITHDRAWAL: DR Savings Control, CR Savings
- * Reference) - Balance changes (account balance reduced after release) - Proper creation of RELEASE, CONTRA DEPOSIT,
- * and WITHDRAWAL transactions
+ * Funds on Hold; WITHDRAWAL: DR Funds on Hold, CR Savings Control + DR Savings Control, CR Savings Reference) - Balance
+ * changes (account balance reduced after release) - Proper creation of RELEASE and WITHDRAWAL transactions
  */
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @ExtendWith({ SavingsTestLifecycleExtension.class })
@@ -111,8 +110,8 @@ public class HoldReleaseEnhancementIntegrationTest {
     /**
      * TS-01: Full Hold → Release
      *
-     * Given: Account balance = 1000 When: Hold 200 Then: Release 200 Expect: - 4 transactions (HOLD, RELEASE,
-     * CONTRA_DEPOSIT, WITHDRAWAL) - GL balanced (Funds on Hold = 0) - Account balance = 800
+     * Given: Account balance = 1000 When: Hold 200 Then: Release 200 Expect: - 3 transactions (HOLD, RELEASE,
+     * WITHDRAWAL) - GL balanced (Funds on Hold = 0) - Account balance = 800
      */
     @Test
     public void testFullHoldAndRelease() {
@@ -165,22 +164,9 @@ public class HoldReleaseEnhancementIntegrationTest {
             Integer withdrawalTransactionId = (Integer) changes.get("withdrawalTransactionId");
             assertNotNull(withdrawalTransactionId, "Withdrawal transaction ID should be in response");
 
-            // Verify contra deposit transaction was created
-            Integer contraDepositTransactionId = (Integer) changes.get("contraDepositTransactionId");
-            assertNotNull(contraDepositTransactionId, "Contra deposit transaction ID should be in response");
-
             // Verify the withdrawal is linked to the hold
             HashMap withdrawalTxn = this.savingsAccountHelper.getSavingsTransaction(savingsId, withdrawalTransactionId);
             assertNotNull(withdrawalTxn, "Withdrawal transaction should exist");
-
-            // Verify the contra deposit exists and is a deposit type (id=1)
-            HashMap contraDepositTxn = this.savingsAccountHelper.getSavingsTransaction(savingsId, contraDepositTransactionId);
-            assertNotNull(contraDepositTxn, "Contra deposit transaction should exist");
-            HashMap contraType = (HashMap) contraDepositTxn.get("transactionType");
-            if (contraType != null) {
-                Integer contraTypeId = (Integer) contraType.get("id");
-                assertEquals(1, contraTypeId.intValue(), "Contra transaction should be of type DEPOSIT");
-            }
         }
 
         // Step 3: Verify final balances
@@ -428,14 +414,12 @@ public class HoldReleaseEnhancementIntegrationTest {
         List<HashMap> transactionsAfter = (List<HashMap>) this.savingsAccountHelper.getSavingsDetails(savingsId, "transactions");
         int countAfter = transactionsAfter != null ? transactionsAfter.size() : 0;
 
-        // Should have 4 new transactions: HOLD, RELEASE, CONTRA_DEPOSIT, WITHDRAWAL
-        assertTrue(countAfter >= countBefore + 4,
-                "Should have at least 4 new transactions (HOLD, RELEASE, CONTRA_DEPOSIT, WITHDRAWAL). Before: " + countBefore + ", After: "
-                        + countAfter);
+        // Should have 3 new transactions: HOLD, RELEASE, WITHDRAWAL
+        assertTrue(countAfter >= countBefore + 3,
+                "Should have at least 3 new transactions (HOLD, RELEASE, WITHDRAWAL). Before: " + countBefore + ", After: " + countAfter);
 
-        // Find withdrawal transaction (type = 2) and contra deposit (type = 1)
+        // Find withdrawal transaction (type = 2)
         boolean foundWithdrawal = false;
-        boolean foundContraDeposit = false;
         for (HashMap txn : transactionsAfter) {
             HashMap transactionType = (HashMap) txn.get("transactionType");
             if (transactionType != null) {
@@ -445,18 +429,12 @@ public class HoldReleaseEnhancementIntegrationTest {
                     // Verify amount matches hold amount
                     BigDecimal amount = new BigDecimal(txn.get("amount").toString());
                     assertEquals(200, amount.intValue(), "Withdrawal amount should match release amount");
-                } else if (typeId != null && typeId == 1) { // DEPOSIT (contra)
-                    // Check if this is a system-generated contra deposit (not the initial deposit)
-                    BigDecimal amount = new BigDecimal(txn.get("amount").toString());
-                    if (amount.intValue() == 200) {
-                        foundContraDeposit = true;
-                    }
+                    break;
                 }
             }
         }
 
         assertTrue(foundWithdrawal, "Should find a WITHDRAWAL transaction after release");
-        assertTrue(foundContraDeposit, "Should find a CONTRA DEPOSIT transaction after release");
 
         LOG.info("Test: Release Creates Withdrawal Transaction PASSED");
     }

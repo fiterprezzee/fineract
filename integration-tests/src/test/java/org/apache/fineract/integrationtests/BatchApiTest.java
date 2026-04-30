@@ -2631,12 +2631,12 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
 
         for (HashMap<String, Object> tx : transactions) {
             HashMap<String, Object> txType = (HashMap<String, Object>) tx.get("transactionType");
-            String typeValue = (String) txType.get("value");
+            Integer typeId = (Integer) txType.get("id");
             Boolean isFromHoldRelease = (Boolean) tx.get("isFromHoldRelease");
 
-            if ("release".equals(typeValue)) {
+            if (Integer.valueOf(21).equals(typeId)) { // AMOUNT_RELEASE
                 releaseTransaction = tx;
-            } else if ("withdrawal".equals(typeValue)) {
+            } else if (Integer.valueOf(2).equals(typeId)) { // WITHDRAWAL
                 if (Boolean.TRUE.equals(isFromHoldRelease)) {
                     systemWithdrawalFromRelease = tx;
                 } else if (userWithdrawal2 == null) {

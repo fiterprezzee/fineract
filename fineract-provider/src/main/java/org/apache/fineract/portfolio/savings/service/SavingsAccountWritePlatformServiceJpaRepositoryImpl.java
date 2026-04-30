@@ -1878,43 +1878,18 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountTransactionRepository.saveAndFlush(releaseTxn);
         holdTransaction.updateReleaseId(releaseTxn.getId());
 
-        // Hold & Release Enhancement (Qi-cards style): Create CONTRA DEPOSIT transaction
-        // This represents the funds being posted/settled - ensures proper reconciliation
-        UUID contraRefNo = UUID.randomUUID();
-        SavingsAccountTransaction contraDepositTxn = SavingsAccountTransaction.deposit(account, account.office(), null,
-                releaseTxn.getTransactionDate(), Money.of(account.getCurrency(), releaseAmount), contraRefNo.toString());
-
-        // Link contra deposit to hold and release
-        contraDepositTxn.setHoldTransactionId(holdTransaction.getId());
-        contraDepositTxn.setRelatedTransactionId(releaseTxn.getId());
-        contraDepositTxn.setIsFromHoldRelease(true);
-        contraDepositTxn.setOperationType("SYSTEM_CONTRA_DEPOSIT");
-        contraDepositTxn.setOriginatingChannel("API");
-        contraDepositTxn.setGlStatus("PENDING");
-
-        // Populate GL account IDs from HOLD transaction for GL posting
-        if (holdTransaction.getHoldFundsOnHoldAccountId() != null) {
-            contraDepositTxn.setHoldFundsOnHoldAccountId(holdTransaction.getHoldFundsOnHoldAccountId());
-        }
-        if (holdTransaction.getHoldSavingsControlAccountId() != null) {
-            contraDepositTxn.setHoldSavingsControlAccountId(holdTransaction.getHoldSavingsControlAccountId());
-        }
-        contraDepositTxn.setIsGLPosted(holdTransaction.isGLPosted());
-
-        // Contra deposit running balance (funds temporarily credited back before withdrawal)
-        Money contraRunningBalance = runningBalance.plus(releaseAmount);
-        contraDepositTxn.setRunningBalance(contraRunningBalance);
-
-        this.savingsAccountTransactionRepository.saveAndFlush(contraDepositTxn);
-
         // Hold & Release Enhancement: Create WITHDRAWAL transaction (actual deduction)
+        // Per ISSUING_TRANSACTION_FLOW: Release + Withdrawal, GL posted by withdrawal
+        // The GL processor handles the 2-step posting:
+        // Step 1 (Contra): DR Funds on Hold, CR Savings Control (reverses hold GL)
+        // Step 2 (Posting): DR Savings Control, CR Savings Reference (actual deduction)
         UUID refNo = UUID.randomUUID();
         SavingsAccountTransaction withdrawalTxn = SavingsAccountTransaction.withdrawal(account, account.office(), null,
                 releaseTxn.getTransactionDate(), Money.of(account.getCurrency(), releaseAmount), refNo.toString());
 
         // Link withdrawal to hold and release
         withdrawalTxn.setHoldTransactionId(holdTransaction.getId());
-        withdrawalTxn.setRelatedTransactionId(contraDepositTxn.getId());
+        withdrawalTxn.setRelatedTransactionId(releaseTxn.getId());
         withdrawalTxn.setIsFromHoldRelease(true);
         withdrawalTxn.setTransactionSubType(org.apache.fineract.portfolio.savings.SavingsTransactionSubType.HOLD_RELEASE_WITHDRAWAL);
         withdrawalTxn.setOperationType("SYSTEM_WITHDRAWAL");
@@ -1935,7 +1910,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         Money withdrawalRunningBalance = runningBalance.minus(releaseAmount);
         withdrawalTxn.setRunningBalance(withdrawalRunningBalance);
 
-        // Deduct from account balance using summary
+        // Deduct from account balance
         account.getSummary().withdraw(releaseAmount);
 
         this.savingsAccountTransactionRepository.saveAndFlush(withdrawalTxn);
@@ -1958,18 +1933,12 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
             existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
         }
 
-        // Now add transactions to account so they're included in GL posting process
+        // Add transactions to account so they're included in GL posting process
         account.addTransaction(releaseTxn);
-        account.addTransaction(contraDepositTxn);
         account.addTransaction(withdrawalTxn);
 
         this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
                 backdatedTxnsAllowedTill);
-
-        // Mark contra deposit GL status as completed
-        contraDepositTxn.setGlStatus("COMPLETED");
-        contraDepositTxn.setIsGLPosted(true);
-        this.savingsAccountTransactionRepository.save(contraDepositTxn);
 
         // Mark withdrawal GL status and flag as GL posted
         withdrawalTxn.setGlStatus("COMPLETED");
@@ -1980,12 +1949,11 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
             this.savingsAccountTransactionRepository.saveAll(account.getSavingsAccountTransactionsWithPivotConfig());
         }
 
-        this.savingAccountRepositoryWrapper.save(account);
+        this.savingAccountRepositoryWrapper.saveAndFlush(account);
 
         // Build response with all relevant transaction IDs
         Map<String, Object> changes = new HashMap<>();
         changes.put("releaseTransactionId", releaseTxn.getId());
-        changes.put("contraDepositTransactionId", contraDepositTxn.getId());
         changes.put("withdrawalTransactionId", withdrawalTxn.getId());
         changes.put("holdTransactionId", holdTransaction.getId());
 

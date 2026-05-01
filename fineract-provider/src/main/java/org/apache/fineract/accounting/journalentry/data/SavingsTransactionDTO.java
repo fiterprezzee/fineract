@@ -22,10 +22,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.apache.fineract.portfolio.savings.data.SavingsAccountTransactionEnumData;
 
-@RequiredArgsConstructor
 @Getter
 public class SavingsTransactionDTO {
 
@@ -47,7 +45,50 @@ public class SavingsTransactionDTO {
     private final boolean isAccountTransfer;
     private final List<TaxPaymentDTO> taxPayments;
 
+    // Hold & Release Enhancement fields
+    private final boolean isFromHoldRelease;
+    private final Long holdTransactionId;
+
+    /**
+     * Original constructor for backward compatibility
+     */
+    public SavingsTransactionDTO(final Long officeId, final Long paymentTypeId, final String transactionId, final LocalDate transactionDate,
+            final SavingsAccountTransactionEnumData transactionType, final BigDecimal amount, final boolean reversed,
+            final List<ChargePaymentDTO> feePayments, final List<ChargePaymentDTO> penaltyPayments, final BigDecimal overdraftAmount,
+            final boolean isAccountTransfer, final List<TaxPaymentDTO> taxPayments) {
+        this(officeId, paymentTypeId, transactionId, transactionDate, transactionType, amount, reversed, feePayments, penaltyPayments,
+                overdraftAmount, isAccountTransfer, taxPayments, false, null);
+    }
+
+    /**
+     * Full constructor with Hold & Release Enhancement fields
+     */
+    public SavingsTransactionDTO(final Long officeId, final Long paymentTypeId, final String transactionId, final LocalDate transactionDate,
+            final SavingsAccountTransactionEnumData transactionType, final BigDecimal amount, final boolean reversed,
+            final List<ChargePaymentDTO> feePayments, final List<ChargePaymentDTO> penaltyPayments, final BigDecimal overdraftAmount,
+            final boolean isAccountTransfer, final List<TaxPaymentDTO> taxPayments, final boolean isFromHoldRelease,
+            final Long holdTransactionId) {
+        this.officeId = officeId;
+        this.paymentTypeId = paymentTypeId;
+        this.transactionId = transactionId;
+        this.transactionDate = transactionDate;
+        this.transactionType = transactionType;
+        this.amount = amount;
+        this.reversed = reversed;
+        this.feePayments = feePayments;
+        this.penaltyPayments = penaltyPayments;
+        this.overdraftAmount = overdraftAmount;
+        this.isAccountTransfer = isAccountTransfer;
+        this.taxPayments = taxPayments;
+        this.isFromHoldRelease = isFromHoldRelease;
+        this.holdTransactionId = holdTransactionId;
+    }
+
     public boolean isOverdraftTransaction() {
         return this.overdraftAmount != null && this.overdraftAmount.doubleValue() > 0;
+    }
+
+    public boolean isFromHoldRelease() {
+        return this.isFromHoldRelease;
     }
 }

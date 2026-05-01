@@ -28,5 +28,6 @@
     <!-- When community versions are updated, custom changes remain isolated and can be easily merged -->
 
     <include file="custom/0001_pentaho_reports_registration.xml" relativeToChangelogFile="true"/>
+    <include file="custom/0002_hold_release_enhancement.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

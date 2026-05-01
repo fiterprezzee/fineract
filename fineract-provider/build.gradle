@@ -319,6 +319,7 @@ cucumber {
     tags = 'not @ignore'
     main = 'io.cucumber.core.cli.Main'
     shorten = 'argfile'
+    glue = 'classpath:org/apache/fineract'
     plugin = [
         'pretty',
         'html:build/reports/cucumber/report.html',

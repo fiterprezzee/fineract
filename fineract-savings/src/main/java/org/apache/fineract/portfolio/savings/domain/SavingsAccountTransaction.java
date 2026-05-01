@@ -48,6 +48,7 @@ import org.apache.fineract.organisation.monetary.domain.Money;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.portfolio.paymentdetail.domain.PaymentDetail;
 import org.apache.fineract.portfolio.savings.SavingsAccountTransactionType;
+import org.apache.fineract.portfolio.savings.SavingsTransactionSubType;
 import org.apache.fineract.portfolio.savings.data.SavingsAccountTransactionEnumData;
 import org.apache.fineract.portfolio.savings.domain.interest.EndOfDayBalance;
 import org.apache.fineract.portfolio.savings.domain.interest.SavingsAccountTransactionDetailsForPostingPeriod;
@@ -137,6 +138,28 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
 
     @Column(name = "ref_no", nullable = true)
     private String refNo;
+
+    // Hold & Release Enhancement - New fields
+    @Column(name = "hold_transaction_id")
+    private Long holdTransactionId;
+
+    @Column(name = "related_transaction_id")
+    private Long relatedTransactionId;
+
+    @Column(name = "transaction_sub_type", length = 50)
+    private String transactionSubType;
+
+    @Column(name = "is_from_hold_release")
+    private Boolean isFromHoldRelease = false;
+
+    @Column(name = "remaining_hold_amount", scale = 6, precision = 19)
+    private BigDecimal remainingHoldAmount;
+
+    @Column(name = "operation_type", length = 30)
+    private String operationType;
+
+    @Column(name = "originating_channel", length = 30)
+    private String originatingChannel;
 
     SavingsAccountTransaction() {}
 
@@ -616,6 +639,10 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         thisTransactionData.put("amount", this.amount);
         thisTransactionData.put("overdraftAmount", this.overdraftAmount);
 
+        // Hold & Release Enhancement: Include hold-related fields for GL posting
+        thisTransactionData.put("isFromHoldRelease", this.isFromHoldRelease != null && this.isFromHoldRelease);
+        thisTransactionData.put("holdTransactionId", this.holdTransactionId);
+
         if (this.paymentDetail != null) {
             thisTransactionData.put("paymentTypeId", this.paymentDetail.getPaymentType().getId());
         }
@@ -892,5 +919,70 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         return new SavingsAccountTransactionDetailsForPostingPeriod(getId(), this.dateOf, this.balanceEndDate, this.runningBalance,
                 this.amount, currency, this.balanceNumberOfDays, isDeposit(), isWithdrawal(), isAllowOverDraft,
                 isChargeTransactionAndNotReversed(), isDividendPayoutAndNotReversed());
+    }
+
+    // Hold & Release Enhancement - Getters and Setters
+
+    public Long getHoldTransactionId() {
+        return this.holdTransactionId;
+    }
+
+    public void setHoldTransactionId(Long holdTransactionId) {
+        this.holdTransactionId = holdTransactionId;
+    }
+
+    public Long getRelatedTransactionId() {
+        return this.relatedTransactionId;
+    }
+
+    public void setRelatedTransactionId(Long relatedTransactionId) {
+        this.relatedTransactionId = relatedTransactionId;
+    }
+
+    public SavingsTransactionSubType getTransactionSubType() {
+        return SavingsTransactionSubType.fromString(this.transactionSubType);
+    }
+
+    public void setTransactionSubType(SavingsTransactionSubType subType) {
+        this.transactionSubType = subType != null ? subType.getValue() : null;
+    }
+
+    public Boolean getIsFromHoldRelease() {
+        return this.isFromHoldRelease != null && this.isFromHoldRelease;
+    }
+
+    public void setIsFromHoldRelease(Boolean isFromHoldRelease) {
+        this.isFromHoldRelease = isFromHoldRelease;
+    }
+
+    public BigDecimal getRemainingHoldAmount() {
+        return this.remainingHoldAmount;
+    }
+
+    public void setRemainingHoldAmount(BigDecimal remainingHoldAmount) {
+        this.remainingHoldAmount = remainingHoldAmount;
+    }
+
+    public String getOperationType() {
+        return this.operationType;
+    }
+
+    public void setOperationType(String operationType) {
+        this.operationType = operationType;
+    }
+
+    public String getOriginatingChannel() {
+        return this.originatingChannel;
+    }
+
+    public void setOriginatingChannel(String originatingChannel) {
+        this.originatingChannel = originatingChannel;
+    }
+
+    /**
+     * Check if this is a hold/release related withdrawal
+     */
+    public boolean isFromHoldRelease() {
+        return Boolean.TRUE.equals(this.isFromHoldRelease);
     }
 }

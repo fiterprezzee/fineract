@@ -24,11 +24,11 @@ services:
       file: ./config/docker/compose/activemq.yml
       service: activemq
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 61616"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8161/ || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 30
-      start_period: 10s
+      start_period: 15s
 
   db:
     extends:

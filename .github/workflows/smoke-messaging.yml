@@ -53,16 +53,43 @@ jobs:
         run: |
           echo "Waiting for fineract-manager to become healthy..."
           CONTAINER_NAME=$(docker compose -f ${{ matrix.compose_file }} -p fineract ps -q fineract-manager)
-          timeout 300 bash -c "until docker inspect --format='{{.State.Health.Status}}' $CONTAINER_NAME 2>/dev/null | grep -q 'healthy'; do
-            STATUS=\$(docker inspect --format='{{.State.Health.Status}}' $CONTAINER_NAME 2>/dev/null || echo 'not-running')
-            echo \"Status: \$STATUS\"
-            if [ \"\$STATUS\" = 'unhealthy' ]; then
-              echo 'Container is unhealthy!'
+          if [ -z "$CONTAINER_NAME" ]; then
+            echo "Error: fineract-manager container not found!"
+            docker compose -f ${{ matrix.compose_file }} -p fineract ps -a
+            exit 1
+          fi
+          echo "Container ID: $CONTAINER_NAME"
+
+          # Wait up to 10 minutes for the container to become healthy
+          # Don't exit on 'unhealthy' during the first 3 minutes (startup period)
+          START_TIME=$(date +%s)
+          STARTUP_GRACE_PERIOD=180
+          MAX_WAIT=600
+
+          while true; do
+            CURRENT_TIME=$(date +%s)
+            ELAPSED=$((CURRENT_TIME - START_TIME))
+
+            if [ $ELAPSED -gt $MAX_WAIT ]; then
+              echo "Timeout waiting for container to become healthy after ${MAX_WAIT}s"
               exit 1
             fi
+
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' $CONTAINER_NAME 2>/dev/null || echo 'not-running')
+            echo "Status: $STATUS (elapsed: ${ELAPSED}s)"
+
+            if [ "$STATUS" = 'healthy' ]; then
+              echo "Fineract Manager is healthy!"
+              break
+            fi
+
+            if [ "$STATUS" = 'unhealthy' ] && [ $ELAPSED -gt $STARTUP_GRACE_PERIOD ]; then
+              echo "Container is unhealthy after grace period!"
+              exit 1
+            fi
+
             sleep 10
-          done"
-          echo "Fineract Manager is healthy!"
+          done
 
       - name: Show container logs on failure
         if: failure()

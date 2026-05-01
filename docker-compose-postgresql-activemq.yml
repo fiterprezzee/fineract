@@ -23,6 +23,12 @@ services:
     extends:
       file: ./config/docker/compose/activemq.yml
       service: activemq
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 61616"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
 
   db:
     extends:
@@ -37,6 +43,8 @@ services:
       - "8443:8443"
     depends_on:
       db:
+        condition: service_healthy
+      activemq:
         condition: service_healthy
     env_file:
       - ./config/docker/env/fineract-manager.env

@@ -25,6 +25,12 @@ services:
       - "9092:9092"
     env_file:
       - ./config/docker/env/kafka-server.env
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
 
   db:
     extends:
@@ -41,7 +47,7 @@ services:
       db:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - ./config/docker/env/fineract-manager.env
       - ./config/docker/env/fineract-common.env

@@ -24,46 +24,63 @@ jobs:
       IMAGE_NAME: fineract
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
 
       - name: Set up JDK 21
-        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4
         with:
           java-version: '21'
           distribution: 'zulu'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4
 
       - name: Build the image
         run: ./gradlew --no-daemon --console=plain :fineract-provider:jibDockerBuild -Djib.to.image=$IMAGE_NAME -x test -x cucumber
 
+      - name: Prepare directories for Docker volumes
+        run: |
+          mkdir -p build/fineract/logs
+          mkdir -p config/docker/aws/etc
+          touch config/docker/aws/etc/credentials
+
       - name: Start the ${{ matrix.messaging }} Stack
-        run: docker compose -f ${{ matrix.compose_file }} up --scale fineract-worker=1 -d
+        run: docker compose -f ${{ matrix.compose_file }} -p fineract up --scale fineract-worker=1 -d
 
       - name: Wait for Fineract Manager to be healthy
         run: |
           echo "Waiting for fineract-manager to become healthy..."
-          timeout 300 bash -c 'until docker inspect --format="{{.State.Health.Status}}" fineract-fineract-manager-1 2>/dev/null | grep -q "healthy"; do
-            STATUS=$(docker inspect --format="{{.State.Health.Status}}" fineract-fineract-manager-1 2>/dev/null || echo "not-running")
-            echo "Status: $STATUS"
-            if [ "$STATUS" = "unhealthy" ]; then
-              echo "Container is unhealthy!"
+          CONTAINER_NAME=$(docker compose -f ${{ matrix.compose_file }} -p fineract ps -q fineract-manager)
+          timeout 300 bash -c "until docker inspect --format='{{.State.Health.Status}}' $CONTAINER_NAME 2>/dev/null | grep -q 'healthy'; do
+            STATUS=\$(docker inspect --format='{{.State.Health.Status}}' $CONTAINER_NAME 2>/dev/null || echo 'not-running')
+            echo \"Status: \$STATUS\"
+            if [ \"\$STATUS\" = 'unhealthy' ]; then
+              echo 'Container is unhealthy!'
               exit 1
             fi
             sleep 10
-          done'
+          done"
           echo "Fineract Manager is healthy!"
 
       - name: Show container logs on failure
         if: failure()
         run: |
-          echo "=== Fineract Manager Logs ==="
-          docker logs fineract-fineract-manager-1 2>&1 | tail -200
           echo "=== Docker PS ==="
           docker ps -a
+          echo ""
+          echo "=== Fineract Manager Logs ==="
+          docker compose -f ${{ matrix.compose_file }} -p fineract logs fineract-manager 2>&1 | tail -500
+          echo ""
+          echo "=== Database Logs ==="
+          docker compose -f ${{ matrix.compose_file }} -p fineract logs db 2>&1 | tail -100
+          echo ""
+          echo "=== Kafka Logs (if applicable) ==="
+          docker compose -f ${{ matrix.compose_file }} -p fineract logs kafka 2>&1 | tail -100 || true
+          echo ""
+          echo "=== ActiveMQ Logs (if applicable) ==="
+          docker compose -f ${{ matrix.compose_file }} -p fineract logs activemq 2>&1 | tail -100 || true
 
       - name: Check the stack
         run: docker ps

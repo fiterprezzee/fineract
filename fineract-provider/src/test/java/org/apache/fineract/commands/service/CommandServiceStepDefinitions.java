@@ -112,7 +112,7 @@ public class CommandServiceStepDefinitions implements En {
         });
     }
 
-    private static class ThrowingSupplier {
+    private static final class ThrowingSupplier {
 
         private final AtomicInteger callCount = new AtomicInteger(0);
 

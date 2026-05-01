@@ -29,7 +29,7 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.springframework.context.ApplicationContext;
 
-public class CommandHandlerProviderStepDefinitions implements En {
+public final class CommandHandlerProviderStepDefinitions implements En {
 
     private CommandHandlerProvider commandHandlerProvider;
 

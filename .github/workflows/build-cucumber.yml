@@ -61,8 +61,7 @@ jobs:
               ./gradlew --no-daemon build -x test -x cucumber -x doc
               ;;
             cucumber)
-              JAVA_TOOL_OPTIONS="-XX:+EnableDynamicAgentLoading --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED" \
-                ./gradlew --no-daemon cucumber -x :fineract-e2e-tests-runner:cucumber -x checkstyleJmh -x checkstyleMain -x checkstyleTest -x spotlessCheck -x spotlessApply -x spotbugsMain -x spotbugsTest -x javadoc -x javadocJar -x modernizer
+              ./gradlew --no-daemon cucumber -x :fineract-e2e-tests-runner:cucumber -x :fineract-provider:cucumber -x checkstyleJmh -x checkstyleMain -x checkstyleTest -x spotlessCheck -x spotlessApply -x spotbugsMain -x spotbugsTest -x javadoc -x javadocJar -x modernizer
               ;;
           esac
 

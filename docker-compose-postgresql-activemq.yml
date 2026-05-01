@@ -23,12 +23,14 @@ services:
     extends:
       file: ./config/docker/compose/activemq.yml
       service: activemq
+    ports:
+      - "8161:8161"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8161/ || exit 1"]
+      test: ["CMD-SHELL", "/bin/bash -c '</dev/tcp/localhost/61616' || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 30
-      start_period: 15s
+      start_period: 30s
 
   db:
     extends:

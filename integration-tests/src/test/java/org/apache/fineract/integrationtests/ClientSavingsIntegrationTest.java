@@ -36,7 +36,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -2256,12 +2255,19 @@ public class ClientSavingsIntegrationTest {
                 error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
 
         Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
-        Date today = Date.from(Utils.getLocalDateOfTenant().atStartOfDay(Utils.getZoneIdOfTenant()).toInstant());
-        String todayDate = today.toString();
-        SimpleDateFormat dt1 = new SimpleDateFormat("dd MMMM yyyy");
-        todayDate = dt1.format(today).toString();
-        withdrawTransactionId = (Integer) this.savingsAccountHelper.withdrawalFromSavingsAccount(savingsId, "300", todayDate,
-                CommonConstants.RESPONSE_RESOURCE_ID);
+
+        // Hold & Release Enhancement: release creates a WITHDRAWAL that deducts the held amount
+        // Balance after release: 5000 - 4900 = 100, Available: 100
+        balance -= (balance - 100); // balance is now 100
+
+        // Deposit 500 so balance becomes 100 + 500 = 600
+        Integer additionalDepositId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId, "500",
+                SavingsAccountHelper.TRANSACTION_DATE_PLUS_ONE, CommonConstants.RESPONSE_RESOURCE_ID);
+        balance += 500; // 600
+
+        // Now withdraw 300 (balance will be 600 - 300 = 300)
+        withdrawTransactionId = (Integer) this.savingsAccountHelper.withdrawalFromSavingsAccount(savingsId, "300",
+                SavingsAccountHelper.TRANSACTION_DATE_PLUS_ONE, CommonConstants.RESPONSE_RESOURCE_ID);
         withdrawTransaction = this.savingsAccountHelper.getSavingsTransaction(savingsId, withdrawTransactionId);
         balance -= Float.parseFloat("300");
         assertEquals(Float.parseFloat("300"), withdrawTransaction.get("amount"), "Verifying Withdrawal Amount");

@@ -137,11 +137,29 @@ public class AccrualBasedAccountingProcessorForSavings implements AccountingProc
                     this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
                             AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), FinancialActivity.LIABILITY_TRANSFER.getValue(),
                             savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
+                } else if (savingsTransactionDTO.isFromHoldRelease()) {
+                    // Hold & Release Enhancement: 2-step GL posting within withdrawal
+                    // Step 1 (Contra): DR Funds on Hold, CR Savings Control (reverses the hold GL)
+                    this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                            AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(), AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(),
+                            savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
+                    // Step 2 (Posting): DR Savings Control, CR Savings Reference (actual deduction)
+                    this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                            AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(),
+                            savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
                 } else {
                     this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
                             AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), AccrualAccountsForSavings.SAVINGS_REFERENCE.getValue(),
                             savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
                 }
+            }
+
+            /** Handle Amount Hold - Hold & Release Enhancement **/
+            else if (savingsTransactionDTO.getTransactionType().isAmountHold()) {
+                // GL: DR Savings Control, CR Funds on Hold (reclassification)
+                this.helper.createCashBasedJournalEntriesAndReversalsForSavings(office, currencyCode,
+                        AccrualAccountsForSavings.SAVINGS_CONTROL.getValue(), AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(),
+                        savingsProductId, paymentTypeId, savingsId, transactionId, transactionDate, amount, isReversal);
             }
 
             else if (savingsTransactionDTO.getTransactionType().isEscheat()) {

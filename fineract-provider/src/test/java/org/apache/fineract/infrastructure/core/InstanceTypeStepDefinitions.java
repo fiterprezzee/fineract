@@ -18,16 +18,22 @@
  */
 package org.apache.fineract.infrastructure.core;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.cucumber.java8.En;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
-import org.springframework.beans.factory.annotation.Autowired;
 
 public class InstanceTypeStepDefinitions implements En {
 
-    @Autowired
+    static FineractProperties sharedFineractProperties;
+
     private FineractProperties fineractProperties;
 
     public InstanceTypeStepDefinitions() {
+        fineractProperties = new FineractProperties();
+        FineractProperties.FineractModeProperties mode = new FineractProperties.FineractModeProperties();
+        fineractProperties.setMode(mode);
+        setSharedFineractProperties(fineractProperties);
+
         Given("Set every Fineract instance type to false", () -> {
             fineractProperties.getMode().setWriteEnabled(false);
             fineractProperties.getMode().setReadEnabled(false);
@@ -43,5 +49,11 @@ public class InstanceTypeStepDefinitions implements En {
         Given("Fineract instance is a batch manager instance", () -> {
             fineractProperties.getMode().setBatchManagerEnabled(true);
         });
+    }
+
+    @SuppressFBWarnings(value = "ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD", justification = "Test class requires static field sharing between test instances")
+    @SuppressWarnings("StaticAssignmentInConstructor")
+    private static void setSharedFineractProperties(FineractProperties properties) {
+        sharedFineractProperties = properties;
     }
 }

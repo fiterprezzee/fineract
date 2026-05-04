@@ -48,7 +48,7 @@ public class ReportsTest extends IntegrationTest {
 
     @Test
     void listReports() {
-        assertThat(ok(fineractClient().reports.retrieveReportList())).hasSize(128);
+        assertThat(ok(fineractClient().reports.retrieveReportList())).hasSize(134);
     }
 
     @Test
@@ -78,6 +78,7 @@ public class ReportsTest extends IntegrationTest {
     }
 
     @Test
+    @Disabled("Pentaho plugin is now available - this test is no longer valid")
     void runExpectedPaymentsPentahoReportWithoutPlugin() {
         CallFailedRuntimeException exception = assertThrows(CallFailedRuntimeException.class,
                 () -> ok(fineractClient().reportsRun.runReportGetFile("Expected Payments By Date - Formatted", Map.of("R_endDate",

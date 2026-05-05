@@ -23,14 +23,6 @@ services:
     extends:
       file: ./config/docker/compose/activemq.yml
       service: activemq
-    ports:
-      - "8161:8161"
-    healthcheck:
-      test: ["CMD", "test", "-f", "/opt/activemq/data/activemq.pid"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
-      start_period: 30s
 
   db:
     extends:
@@ -45,8 +37,6 @@ services:
       - "8443:8443"
     depends_on:
       db:
-        condition: service_healthy
-      activemq:
         condition: service_healthy
     env_file:
       - ./config/docker/env/fineract-manager.env

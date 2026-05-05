@@ -85,7 +85,7 @@ public class FineractProperties {
 
     private FineractModulesProperties module;
 
-    private FineractSqlValidationProperties sqlValidation = new FineractSqlValidationProperties();
+    private FineractSqlValidationProperties sqlValidation;
 
     private FineractCache cache;
 
@@ -391,17 +391,9 @@ public class FineractProperties {
 
     @Getter
     @Setter
-    public static class FineractPentahoProperties {
-
-        private String path;
-    }
-
-    @Getter
-    @Setter
     public static class FineractReportProperties {
 
         private FineractExportProperties export;
-        private FineractPentahoProperties pentaho;
     }
 
     @Getter
@@ -626,8 +618,8 @@ public class FineractProperties {
     @Setter
     public static class FineractSqlValidationProperties {
 
-        private List<FineractSqlValidationPatternProperties> patterns = new ArrayList<>();
-        private List<FineractSqlValidationProfileProperties> profiles = new ArrayList<>();
+        private List<FineractSqlValidationPatternProperties> patterns;
+        private List<FineractSqlValidationProfileProperties> profiles;
     }
 
     @Getter
@@ -636,7 +628,7 @@ public class FineractProperties {
 
         private String name;
         private String description;
-        private List<FineractSqlValidationPatternReferenceProperties> patternRefs = new ArrayList<>();
+        private List<FineractSqlValidationPatternReferenceProperties> patternRefs;
         private Boolean enabled = true;
     }
 

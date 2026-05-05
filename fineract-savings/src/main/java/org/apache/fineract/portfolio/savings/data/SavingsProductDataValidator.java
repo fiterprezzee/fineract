@@ -105,12 +105,12 @@ public class SavingsProductDataValidator {
             SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(),
             SavingProductAccountingParams.LOSSES_WRITTEN_OFF.getValue(), SavingProductAccountingParams.INCOME_FROM_INTEREST.getValue(),
             SavingProductAccountingParams.ESCHEAT_LIABILITY.getValue(), SavingProductAccountingParams.INTEREST_RECEIVABLE.getValue(),
-            SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), isDormancyTrackingActiveParamName, daysToDormancyParamName,
-            daysToInactiveParamName, daysToEscheatParamName, allowOverdraftParamName, overdraftLimitParamName,
-            nominalAnnualInterestRateOverdraftParamName, minOverdraftForInterestCalculationParamName,
-            SavingsApiConstants.minRequiredBalanceParamName, SavingsApiConstants.enforceMinRequiredBalanceParamName,
-            SavingsApiConstants.maxAllowedLienLimitParamName, SavingsApiConstants.lienAllowedParamName,
-            minBalanceForInterestCalculationParamName, withHoldTaxParamName, taxGroupIdParamName));
+            isDormancyTrackingActiveParamName, daysToDormancyParamName, daysToInactiveParamName, daysToEscheatParamName,
+            allowOverdraftParamName, overdraftLimitParamName, nominalAnnualInterestRateOverdraftParamName,
+            minOverdraftForInterestCalculationParamName, SavingsApiConstants.minRequiredBalanceParamName,
+            SavingsApiConstants.enforceMinRequiredBalanceParamName, SavingsApiConstants.maxAllowedLienLimitParamName,
+            SavingsApiConstants.lienAllowedParamName, minBalanceForInterestCalculationParamName, withHoldTaxParamName,
+            taxGroupIdParamName));
 
     public void validateForCreate(final String json) {
 

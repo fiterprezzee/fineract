@@ -710,27 +710,6 @@ public class SavingsAccountHelper {
                 getSavingsTransactionJSON("1000", LAST_TRANSACTION_DATE), CommonConstants.RESPONSE_RESOURCE_ID);
     }
 
-    /**
-     * Release hold amount and return full response including withdrawal transaction ID.
-     */
-    @Deprecated(forRemoval = true)
-    public HashMap releaseAmountWithFullResponse(final Integer savingsId, final Integer transactionId) {
-        LOG.info("\n--------------------------------- SAVINGS TRANSACTION RELEASE AMOUNT (FULL RESPONSE)--------------------------------");
-        final String url = createAdjustTransactionURL(RELEASE_AMOUNT_SAVINGS_COMMAND, savingsId, transactionId);
-        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getSavingsTransactionJSON("1000", LAST_TRANSACTION_DATE),
-                "");
-    }
-
-    /**
-     * Try to release hold amount and expect error response.
-     */
-    @Deprecated(forRemoval = true)
-    public Object releaseAmountWithError(final Integer savingsId, final Integer transactionId) {
-        LOG.info("\n--------------------------------- SAVINGS TRANSACTION RELEASE AMOUNT (EXPECT ERROR)--------------------------------");
-        return performSavingActions(createAdjustTransactionURL(RELEASE_AMOUNT_SAVINGS_COMMAND, savingsId, transactionId),
-                getSavingsTransactionJSON("1000", LAST_TRANSACTION_DATE), CommonConstants.RESPONSE_ERROR);
-    }
-
     // TODO: Rewrite to use fineract-client instead!
     // Example: org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper.disburseLoan(java.lang.Long,
     // org.apache.fineract.client.models.PostLoansLoanIdRequest)

@@ -338,18 +338,4 @@ public final class SavingsAccountSummary {
     public BigDecimal getTotalWithholdTax() {
         return this.totalWithholdTax;
     }
-
-    /**
-     * Hold & Release Enhancement: Deducts amount from account balance and adds to total withdrawals. Used by
-     * hold-release flow where withdrawal is triggered by release.
-     *
-     * @param amount
-     *            the amount to withdraw
-     */
-    public void withdraw(BigDecimal amount) {
-        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
-            this.totalWithdrawals = this.totalWithdrawals == null ? amount : this.totalWithdrawals.add(amount);
-            this.accountBalance = this.accountBalance == null ? amount.negate() : this.accountBalance.subtract(amount);
-        }
-    }
 }

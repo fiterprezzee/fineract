@@ -149,7 +149,7 @@ jobs:
           case "${{ inputs.environment }}" in
             dev)     PREFIX=dev-  ;;
             staging) PREFIX=uat-  ;;
-            prod)    PREFIX=main- ;;
+            prod)    PREFIX=prod- ;;
           esac
 
           PREV_DIGEST=$(aws ecr batch-get-image \

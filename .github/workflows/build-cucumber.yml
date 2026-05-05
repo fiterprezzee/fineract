@@ -15,9 +15,9 @@ jobs:
       matrix:
         include:
           - task: build-core
-            job_type: main
+            job_type: prod
           - task: cucumber
-            job_type: main
+            job_type: prod
           - task: build-progressive-loan
             job_type: progressive-loan
 
@@ -52,7 +52,7 @@ jobs:
           validate-wrappers: true
 
       - name: Run Gradle Task
-        if: matrix.job_type == 'main'
+        if: matrix.job_type == 'prod'
         run: |
           set -e  # Fail the script if any command fails
 

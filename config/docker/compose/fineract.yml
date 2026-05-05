@@ -27,8 +27,6 @@ services:
       - ${PWD}/config/docker/aws/etc/credentials:/etc/aws/credentials:ro
       - ${PWD}/build/fineract/logs:/var/logs/fineract:rw
     healthcheck:
-      test: ["CMD", "bash", "-c", "(echo > /dev/tcp/localhost/8443) >/dev/null 2>&1"]
-      interval: 15s
-      timeout: 10s
-      retries: 40
-      start_period: 180s
+      test: ["CMD", 'sh', '-c', 'echo -e "Checking for the availability of Fineract server deployment"; while ! nc -z "localhost" 8443; do sleep 1; printf "-"; done; echo -e " >> Fineract server has started";' ]
+      timeout: 1s
+      retries: 60

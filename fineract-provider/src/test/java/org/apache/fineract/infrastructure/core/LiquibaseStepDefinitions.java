@@ -45,6 +45,7 @@ import org.apache.fineract.infrastructure.core.service.migration.TenantDatabaseS
 import org.apache.fineract.infrastructure.core.service.migration.TenantDatabaseUpgradeService;
 import org.apache.fineract.infrastructure.core.service.migration.TenantPasswordEncryptionTask;
 import org.apache.fineract.infrastructure.core.service.tenant.TenantDetailsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.mock.env.MockEnvironment;
 
@@ -53,6 +54,7 @@ public class LiquibaseStepDefinitions implements En {
     private TenantDataSourceFactory tenantDataSourceFactory;
     private TenantDetailsService tenantDetailsService;
     private TenantDatabaseStateVerifier databaseStateVerifier;
+    @Autowired
     private FineractProperties fineractProperties;
     private ExtendedSpringLiquibaseFactory liquibaseFactory;
     private ExtendedSpringLiquibase initialTenantStoreLiquibase;
@@ -154,41 +156,7 @@ public class LiquibaseStepDefinitions implements En {
         tenantDataSourceFactory = mock(TenantDataSourceFactory.class);
         tenantDetailsService = mock(TenantDetailsService.class);
         databaseStateVerifier = mock(TenantDatabaseStateVerifier.class);
-
-        // ✅ IMPORTANT: force write instance (prevents early exit)
-        environment = new MockEnvironment().withProperty("fineract.mode.write-enabled", "true");
-
-        fineractProperties = new FineractProperties();
-        // Use shared mode from InstanceTypeStepDefinitions if available
-        if (InstanceTypeStepDefinitions.sharedFineractProperties != null
-                && InstanceTypeStepDefinitions.sharedFineractProperties.getMode() != null) {
-            fineractProperties.setMode(InstanceTypeStepDefinitions.sharedFineractProperties.getMode());
-        } else {
-            FineractProperties.FineractModeProperties mode = new FineractProperties.FineractModeProperties();
-            mode.setWriteEnabled(true);
-            mode.setReadEnabled(true);
-            mode.setBatchWorkerEnabled(false);
-            mode.setBatchManagerEnabled(false);
-            fineractProperties.setMode(mode);
-        }
-
-        FineractProperties.FineractTenantProperties tenant = new FineractProperties.FineractTenantProperties();
-        tenant.setHost("localhost");
-        tenant.setPort(5432);
-        tenant.setUsername("postgres");
-        tenant.setPassword("postgres");
-        tenant.setParameters("");
-        tenant.setTimezone("UTC");
-        tenant.setIdentifier("default");
-        tenant.setName("fineract_default");
-        tenant.setDescription("Default Tenant");
-        fineractProperties.setTenant(tenant);
-
-        FineractProperties.FineractTaskExecutor taskExecutor = new FineractProperties.FineractTaskExecutor();
-        taskExecutor.setTenantUpgradeTaskExecutorCorePoolSize(1);
-        taskExecutor.setTenantUpgradeTaskExecutorMaxPoolSize(1);
-        taskExecutor.setTenantUpgradeTaskExecutorQueueCapacity(1);
-        fineractProperties.setTaskExecutor(taskExecutor);
+        environment = new MockEnvironment();
 
         liquibaseFactory = mock(ExtendedSpringLiquibaseFactory.class);
 
@@ -208,20 +176,15 @@ public class LiquibaseStepDefinitions implements En {
 
         TenantPasswordEncryptionTask tenantPasswordEncryptor = mock(TenantPasswordEncryptionTask.class);
 
-        // ✅ Liquibase enabled/disabled
         given(databaseStateVerifier.isLiquibaseDisabled()).willReturn(!liquibaseEnabled);
-
-        // ✅ Liquibase factory wiring
         given(liquibaseFactory.create(tenantStoreDataSource, TENANT_STORE_DB_CONTEXT, INITIAL_SWITCH_CONTEXT))
                 .willReturn(initialTenantStoreLiquibase);
         given(liquibaseFactory.create(tenantStoreDataSource, TENANT_STORE_DB_CONTEXT)).willReturn(tenantStoreLiquibase);
 
         given(tenantDetailsService.findAllTenants()).willReturn(allTenants);
         given(tenantDataSourceFactory.create(defaultTenant)).willReturn(defaultTenantDataSource);
-
         given(liquibaseFactory.create(defaultTenantDataSource, TENANT_DB_CONTEXT, CUSTOM_CHANGELOG_CONTEXT, INITIAL_SWITCH_CONTEXT,
                 "defaultTenant")).willReturn(initialTenantLiquibase);
-
         given(liquibaseFactory.create(defaultTenantDataSource, TENANT_DB_CONTEXT, CUSTOM_CHANGELOG_CONTEXT, "defaultTenant"))
                 .willReturn(tenantLiquibase);
 

@@ -271,8 +271,7 @@ public final class AccountingConstants {
         OVERDRAFT_PORTFOLIO_CONTROL(11), //
         INCOME_FROM_INTEREST(12), //
         LOSSES_WRITTEN_OFF(13), //
-        ESCHEAT_LIABILITY(14), //
-        FUNDS_ON_HOLD(15); // Hold & Release Enhancement - Liability account for reserved funds
+        ESCHEAT_LIABILITY(14); //
 
         private final Integer value;
 
@@ -321,8 +320,7 @@ public final class AccountingConstants {
         FEES_RECEIVABLE(15), //
         PENALTIES_RECEIVABLE(16), //
         INTEREST_PAYABLE(17), //
-        INTEREST_RECEIVABLE(18), //
-        FUNDS_ON_HOLD(19); // Hold & Release Enhancement - Liability account for reserved funds
+        INTEREST_RECEIVABLE(18);
 
         private final Integer value;
 
@@ -378,8 +376,7 @@ public final class AccountingConstants {
         PENALTIES_RECEIVABLE("penaltiesReceivableAccountId"), //
         INTEREST_RECEIVABLE("interestReceivableAccountId"), //
         FEES_RECEIVABLE("feesReceivableAccountId"), //
-        INTEREST_PAYABLE("interestPayableAccountId"), //
-        FUNDS_ON_HOLD("fundsOnHoldAccountId"); // Hold & Release Enhancement
+        INTEREST_PAYABLE("interestPayableAccountId");
 
         private final String value;
 
@@ -417,8 +414,7 @@ public final class AccountingConstants {
         FEES_RECEIVABLE("feeReceivableAccount"), //
         PENALTIES_RECEIVABLE("penaltyReceivableAccount"), //
         INTEREST_PAYABLE("interestPayableAccount"), //
-        INTEREST_RECEIVABLE("interestReceivableAccount"), //
-        FUNDS_ON_HOLD("fundsOnHoldAccount"); // Hold & Release Enhancement
+        INTEREST_RECEIVABLE("interestReceivableAccount"); //
 
         private final String value;
 

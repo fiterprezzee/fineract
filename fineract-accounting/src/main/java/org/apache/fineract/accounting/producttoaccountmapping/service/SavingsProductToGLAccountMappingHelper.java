@@ -167,10 +167,6 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 changes.put(SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(), overdraftControlId);
                 changes.put(SavingProductAccountingParams.INCOME_FROM_INTEREST.getValue(), incomeFromInterest);
                 changes.put(SavingProductAccountingParams.LOSSES_WRITTEN_OFF.getValue(), writeOffId);
-                // Hold & Release Enhancement
-                final Long fundsOnHoldIdCash = this.fromApiJsonHelper
-                        .extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), element);
-                changes.put(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), fundsOnHoldIdCash);
             break;
             case ACCRUAL_PERIODIC:
                 final Long feeReceivableId = this.fromApiJsonHelper
@@ -192,10 +188,6 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 changes.put(SavingProductAccountingParams.FEES_RECEIVABLE.getValue(), feeReceivableId);
                 changes.put(SavingProductAccountingParams.PENALTIES_RECEIVABLE.getValue(), penaltyReceivableId);
                 changes.put(SavingProductAccountingParams.INTEREST_PAYABLE.getValue(), interestPayableId);
-                // Hold & Release Enhancement
-                final Long fundsOnHoldIdAccrual = this.fromApiJsonHelper
-                        .extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), element);
-                changes.put(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), fundsOnHoldIdAccrual);
             break;
             case ACCRUAL_UPFRONT:
             break;
@@ -256,9 +248,6 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                         CashAccountsForSavings.TRANSFERS_SUSPENSE.toString(), changes);
                 createOrmergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.ESCHEAT_LIABILITY.getValue(),
                         savingsProductId, CashAccountsForSavings.ESCHEAT_LIABILITY.getValue(), changes);
-                // Hold & Release Enhancement
-                createOrmergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
-                        savingsProductId, CashAccountsForSavings.FUNDS_ON_HOLD.getValue(), changes);
             break;
             case ACCRUAL_PERIODIC:
                 // asset
@@ -319,9 +308,6 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
 
                 createOrmergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.ESCHEAT_LIABILITY.getValue(),
                         savingsProductId, AccrualAccountsForSavings.ESCHEAT_LIABILITY.getValue(), changes);
-                // Hold & Release Enhancement
-                createOrmergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
-                        savingsProductId, AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(), changes);
 
             break;
             case ACCRUAL_UPFRONT:

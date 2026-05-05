@@ -426,8 +426,6 @@ public class ProductToGLAccountMappingReadPlatformServiceImpl implements Product
                     accountMappingDetails.put(SavingProductAccountingDataParams.INCOME_FROM_INTEREST.getValue(), glAccountData);
                 } else if (glAccountForSavings.equals(AccrualAccountsForSavings.ESCHEAT_LIABILITY)) {
                     accountMappingDetails.put(SavingProductAccountingDataParams.ESCHEAT_LIABILITY.getValue(), glAccountData);
-                } else if (glAccountForSavings.equals(AccrualAccountsForSavings.FUNDS_ON_HOLD)) {
-                    accountMappingDetails.put(SavingProductAccountingDataParams.FUNDS_ON_HOLD.getValue(), glAccountData);
                     // Expense
                 } else if (glAccountForSavings.equals(AccrualAccountsForSavings.INTEREST_ON_SAVINGS)) {
                     accountMappingDetails.put(SavingProductAccountingDataParams.INTEREST_ON_SAVINGS.getValue(), glAccountData);
@@ -472,8 +470,6 @@ public class ProductToGLAccountMappingReadPlatformServiceImpl implements Product
                     accountMappingDetails.put(SavingProductAccountingDataParams.INCOME_FROM_INTEREST.getValue(), glAccountData);
                 } else if (glAccountForSavings.equals(CashAccountsForSavings.ESCHEAT_LIABILITY)) {
                     accountMappingDetails.put(SavingProductAccountingDataParams.ESCHEAT_LIABILITY.getValue(), glAccountData);
-                } else if (glAccountForSavings.equals(CashAccountsForSavings.FUNDS_ON_HOLD)) {
-                    accountMappingDetails.put(SavingProductAccountingDataParams.FUNDS_ON_HOLD.getValue(), glAccountData);
                     // Expense
                 } else if (glAccountForSavings.equals(CashAccountsForSavings.INTEREST_ON_SAVINGS)) {
                     accountMappingDetails.put(SavingProductAccountingDataParams.INTEREST_ON_SAVINGS.getValue(), glAccountData);

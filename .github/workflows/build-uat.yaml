@@ -1,6 +1,6 @@
 name: Build & deploy uat
 
-# Builds an immutable <sha>-uat image on merge to prezzee/uat,
+# Builds an immutable <sha>-staging image on merge to prezzee/uat,
 # then auto-dispatches the gated staging deployment workflow.
 
 on:
@@ -45,7 +45,7 @@ jobs:
         id: meta
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "image_tag=$SHORT_SHA-uat" >> $GITHUB_OUTPUT
+          echo "image_tag=$SHORT_SHA-staging" >> $GITHUB_OUTPUT
 
       - name: Set up JDK 21
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4

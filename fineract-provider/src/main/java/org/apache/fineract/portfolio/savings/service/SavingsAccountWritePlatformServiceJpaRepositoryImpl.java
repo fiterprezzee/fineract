@@ -1767,12 +1767,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountTransactionDataValidator.validateHoldAndAssembleForm(command.json(), account, submittedBy,
                 backdatedTxnsAllowedTill);
         SavingsAccountTransaction transaction = this.savingsAccountDomainService.handleHold(account, amount, transactionDate, lienAllowed);
-
-        // Hold & Release Enhancement: Set remaining hold amount to full amount
-        transaction.setRemainingHoldAmount(amount);
-        transaction.setOperationType("USER_HOLD");
-        transaction.setOriginatingChannel("API");
-
         account.holdAmount(amount);
         transaction.setRunningBalance(runningBalance);
 
@@ -1782,28 +1776,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         account.getAccountBalance();
         this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(transaction.getTransactionDate(), account);
 
-        // Hold & Release Enhancement: Capture existing transaction IDs BEFORE adding new transaction
-        // This ensures the new HOLD transaction will be included in GL posting
-        final Set<Long> existingTransactionIds = new HashSet<>();
-        final Set<Long> existingReversedTransactionIds = new HashSet<>();
-        if (backdatedTxnsAllowedTill) {
-            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
-            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
-        } else {
-            existingTransactionIds.addAll(account.findExistingTransactionIds());
-            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
-        }
-
-        // Save transaction first to get ID
         this.savingsAccountTransactionRepository.saveAndFlush(transaction);
-
-        account.addTransaction(transaction);
-
-        // Post journal entries (includes HOLD GL posting)
-        this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
-                backdatedTxnsAllowedTill);
-
-        this.savingsAccountTransactionRepository.save(transaction);
 
         if (backdatedTxnsAllowedTill) {
             // Check again whether transactions are modified
@@ -1820,128 +1793,43 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
     @Override
     public CommandProcessingResult releaseAmount(final Long savingsId, final Long savingsTransactionId) {
         context.authenticatedUser();
+        SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
+                .findOneByIdAndSavingsAccountId(savingsTransactionId, savingsId);
 
-        // Hold & Release Enhancement: Lock account first to prevent concurrent modifications
+        holdTransaction.updateReason(null);
+
+        final SavingsAccountTransaction transaction = this.savingsAccountTransactionDataValidator
+                .validateReleaseAmountAndAssembleForm(holdTransaction);
+
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
         final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         checkClientOrGroupActive(account);
 
-        // Lock hold transaction to prevent over-release
-        SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository.findByIdWithLock(savingsTransactionId)
-                .orElseThrow(() -> new SavingsAccountTransactionNotFoundException(savingsId, savingsTransactionId));
-
-        holdTransaction.updateReason(null);
-
-        // Validate remaining hold amount
-        BigDecimal remainingHold = holdTransaction.getRemainingHoldAmount();
-        if (remainingHold == null) {
-            // Old transaction without remaining_hold_amount - use full amount
-            remainingHold = holdTransaction.getAmount();
-        }
-        if (remainingHold.compareTo(BigDecimal.ZERO) == 0) {
-            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.hold.already.released",
-                    "Hold has already been fully released", savingsTransactionId);
-        }
-
-        final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
-                .validateReleaseAmountAndAssembleForm(holdTransaction);
-
-        BigDecimal releaseAmount = releaseTxn.getAmount();
-
-        // Validate release amount against remaining hold
-        if (releaseAmount.compareTo(remainingHold) > 0) {
-            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.hold.insufficient.amount",
-                    "Release amount exceeds remaining hold amount", releaseAmount, remainingHold);
-        }
-
         Money runningBalance = Money.of(account.getCurrency(), account.getAccountBalance());
+
         Money savingsOnHold = Money.of(account.getCurrency(), account.getSavingsHoldAmount());
-        runningBalance = runningBalance.minus(savingsOnHold).plus(releaseAmount);
-        releaseTxn.setRunningBalance(runningBalance);
 
-        // Set release transaction linkage
-        releaseTxn.setHoldTransactionId(holdTransaction.getId());
-        releaseTxn.setRelatedTransactionId(holdTransaction.getId());
-        releaseTxn.setOperationType("USER_RELEASE");
-        releaseTxn.setOriginatingChannel("API");
+        runningBalance = runningBalance.minus(savingsOnHold);
 
-        this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(releaseTxn.getTransactionDate(), account);
+        runningBalance = runningBalance.plus(transaction.getAmount());
+        transaction.setRunningBalance(runningBalance);
 
-        // Release the hold
-        account.releaseOnHoldAmount(releaseAmount);
+        this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(transaction.getTransactionDate(), account);
+        account.releaseOnHoldAmount(transaction.getAmount());
 
-        // Save release transaction first
-        this.savingsAccountTransactionRepository.saveAndFlush(releaseTxn);
-        holdTransaction.updateReleaseId(releaseTxn.getId());
-
-        // Hold & Release Enhancement: Create WITHDRAWAL transaction (actual deduction)
-        // Per ISSUING_TRANSACTION_FLOW: Release + Withdrawal, GL posted by withdrawal
-        // The GL processor handles the 2-step posting:
-        // Step 1 (Contra): DR Funds on Hold, CR Savings Control (reverses hold GL)
-        // Step 2 (Posting): DR Savings Control, CR Savings Reference (actual deduction)
-        UUID refNo = UUID.randomUUID();
-        SavingsAccountTransaction withdrawalTxn = SavingsAccountTransaction.withdrawal(account, account.office(), null,
-                releaseTxn.getTransactionDate(), Money.of(account.getCurrency(), releaseAmount), refNo.toString());
-
-        // Link withdrawal to hold and release
-        withdrawalTxn.setHoldTransactionId(holdTransaction.getId());
-        withdrawalTxn.setRelatedTransactionId(releaseTxn.getId());
-        withdrawalTxn.setIsFromHoldRelease(true);
-        withdrawalTxn.setTransactionSubType(org.apache.fineract.portfolio.savings.SavingsTransactionSubType.HOLD_RELEASE_WITHDRAWAL);
-        withdrawalTxn.setOperationType("SYSTEM_WITHDRAWAL");
-        withdrawalTxn.setOriginatingChannel("API");
-
-        // Set running balance for withdrawal (after deduction)
-        Money withdrawalRunningBalance = runningBalance.minus(releaseAmount);
-        withdrawalTxn.setRunningBalance(withdrawalRunningBalance);
-
-        // Deduct from account balance
-        account.getSummary().withdraw(releaseAmount);
-
-        this.savingsAccountTransactionRepository.saveAndFlush(withdrawalTxn);
-
-        // Atomically decrement remaining hold amount
-        int updated = this.savingsAccountTransactionRepository.decrementRemainingHoldAmount(holdTransaction.getId(), releaseAmount);
-        if (updated != 1) {
-            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.hold.concurrent.modification",
-                    "Hold was modified concurrently", holdTransaction.getId());
-        }
-
-        // This ensures new transactions will be included in GL posting
-        final Set<Long> existingTransactionIds = new HashSet<>();
-        final Set<Long> existingReversedTransactionIds = new HashSet<>();
-        if (backdatedTxnsAllowedTill) {
-            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
-            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
-        } else {
-            existingTransactionIds.addAll(account.findExistingTransactionIds());
-            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
-        }
-
-        // Add transactions to account so they're included in GL posting process
-        account.addTransaction(releaseTxn);
-        account.addTransaction(withdrawalTxn);
-
-        this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
-                backdatedTxnsAllowedTill);
-
-        // Mark withdrawal GL status and flag as GL posted
-        this.savingsAccountTransactionRepository.save(withdrawalTxn);
+        this.savingsAccountTransactionRepository.saveAndFlush(transaction);
+        holdTransaction.updateReleaseId(transaction.getId());
 
         if (backdatedTxnsAllowedTill) {
             this.savingsAccountTransactionRepository.saveAll(account.getSavingsAccountTransactionsWithPivotConfig());
+        } else {
+            account.addTransaction(transaction);
         }
 
-        this.savingAccountRepositoryWrapper.saveAndFlush(account);
+        this.savingAccountRepositoryWrapper.save(account);
 
-        // Build response with all relevant transaction IDs
-        Map<String, Object> changes = new HashMap<>();
-        changes.put("releaseTransactionId", releaseTxn.getId());
-        changes.put("withdrawalTransactionId", withdrawalTxn.getId());
-        changes.put("holdTransactionId", holdTransaction.getId());
-
-        return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
-                .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
+        return new CommandProcessingResultBuilder().withEntityId(transaction.getId()).withOfficeId(account.officeId())
+                .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).build();
     }
 
     @Transactional

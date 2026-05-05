@@ -78,7 +78,6 @@ public class SavingsProductHelper {
     private String overdraftPortfolioControlId = null;
     private String incomeFromInterestId = null;
     private String writeOffAccountId = null;
-    private String fundsOnHoldAccountId = null;
     private String minRequiredOpeningBalance = null;
     private String lockinPeriodFrequency = "0";
     private String withdrawalFeeForTransfers = "true";
@@ -329,11 +328,6 @@ public class SavingsProductHelper {
         return this;
     }
 
-    public SavingsProductHelper withFundsOnHoldAccountId(final String fundsOnHoldAccountId) {
-        this.fundsOnHoldAccountId = fundsOnHoldAccountId;
-        return this;
-    }
-
     public SavingsProductHelper withInterestOnSavingsAccountId(final String interestOnSavingsAccountId) {
         this.interestOnSavingsAccountId = interestOnSavingsAccountId;
         return this;
@@ -410,10 +404,6 @@ public class SavingsProductHelper {
                     map.put("incomeFromInterestId", ID);
                 }
             }
-        }
-        // Hold & Release Enhancement: Add fundsOnHoldAccountId if set
-        if (this.fundsOnHoldAccountId != null) {
-            map.put("fundsOnHoldAccountId", this.fundsOnHoldAccountId);
         }
         return map;
     }

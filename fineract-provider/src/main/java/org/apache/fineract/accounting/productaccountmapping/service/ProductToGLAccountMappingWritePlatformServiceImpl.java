@@ -301,15 +301,6 @@ public class ProductToGLAccountMappingWritePlatformServiceImpl implements Produc
                     CashAccountsForSavings.ESCHEAT_LIABILITY.getValue());
         }
 
-        // Hold & Release Enhancement: Save Funds on Hold account mapping (optional)
-        final Long fundsOnHoldAccountId = this.fromApiJsonHelper.extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
-                element);
-        if (fundsOnHoldAccountId != null) {
-            this.savingsProductToGLAccountMappingHelper.saveSavingsToLiabilityAccountMapping(element,
-                    SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), savingProductId,
-                    CashAccountsForSavings.FUNDS_ON_HOLD.getValue());
-        }
-
         // advanced accounting mappings
         this.savingsProductToGLAccountMappingHelper.savePaymentChannelToFundSourceMappings(command, element, savingProductId, null);
         this.savingsProductToGLAccountMappingHelper.saveChargesToIncomeAccountMappings(command, element, savingProductId, null);

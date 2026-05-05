@@ -210,7 +210,7 @@ allprojects  {
     spotless {
         format 'misc', {
             target '**/*.md', '**/*.properties', '**/.gitignore', '**/.openapi-generator-ignore', '**/*.yml', '**/*.xml', '**/**.json', '**/*.sql'
-            targetExclude '**/build/**', '**/bin/**', '**/.settings/**', '**/.idea/**', '**/.gradle/**', '**/gradlew.bat', '**/licenses/**', '**/banner.txt', '.vscode/**', '.profileconfig.json', '**/pentahoReports/**', '**/libs/**'
+            targetExclude '**/build/**', '**/bin/**', '**/.settings/**', '**/.idea/**', '**/.gradle/**', '**/gradlew.bat', '**/licenses/**', '**/banner.txt', '.vscode/**', '.profileconfig.json'
             indentWithSpaces(4)
             endWithNewline()
             trimTrailingWhitespace()
@@ -246,11 +246,7 @@ allprojects  {
             "**/build.gradle.mustache",
             "**/pom.mustache",
             "**/avro/**/*.java",
-            "**/org/apache/fineract/client/**/*.java",
-            "**/pentahoReports/**",
-            "**/libs/**",
-            "**/*.jar",
-            "**/*.prpt"
+            "**/org/apache/fineract/client/**/*.java"
         ])
         strictCheck true
     }
@@ -263,7 +259,7 @@ allprojects  {
     // https://github.com/eskatos/creadur-rat-gradle
     rat {
         verbose = false
-        reportDir = layout.buildDirectory.dir("reports/rat").get().asFile
+        reportDir = file("$buildDir/reports/rat")
         excludes = [
             '**/src/main/templates/**/*.mustache',
             '**/.dockerignore',
@@ -310,25 +306,6 @@ allprojects  {
             '**/native/**',
             '**/wrapper/**',
             '**/build/**',
-            // Third-party libraries (Pentaho JARs)
-            '**/libs/**',
-            '**/*.jar',
-            // Pentaho Report Templates and associated files
-            '**/pentahoReports/**',
-            '**/pentahoReports/*.prpt',
-            '**/pentahoReports/*.properties',
-            '**/pentahoReports/*.txt',
-            '**/pentahoReports/*.png',
-            '**/*.prpt',
-            // Pentaho Reports in fineract-provider specifically
-            'fineract-provider/pentahoReports/**',
-            // Binary and image files
-            '**/*.png',
-            '**/*.jpg',
-            '**/*.jpeg',
-            '**/*.gif',
-            '**/*.ico',
-            '**/*.pdf',
             // Api Docs
             '**/legacy-docs/*.*',
             '**/docs/system-architecture/.htaccess',
@@ -404,7 +381,7 @@ configure(project.fineractJavaProjects) {
     }
 
     // Add performance optimizations
-    configurations.configureEach {
+    configurations.all {
         resolutionStrategy {
             cacheChangingModulesFor 0, 'seconds'
             cacheDynamicVersionsFor 0, 'seconds'
@@ -425,7 +402,10 @@ configure(project.fineractJavaProjects) {
         if (project.hasProperty('warnings') && project.warnings.contains('none')) {
             options.compilerArgs << '-nowarn'
         }
-        options.generatedSourceOutputDirectory.set(layout.buildDirectory.dir("generated/sources/annotationProcessor/java/main"))
+        if (project.plugins.hasPlugin('org.springframework.boot')) {
+            options.generatedSourceOutputDirectory = file("$buildDir/generated/sources/annotationProcessor/java/main")
+        }
+        options.generatedSourceOutputDirectory = file("$buildDir/generated/sources/annotationProcessor/java/main")
     }
 
     apply plugin: 'eclipse'
@@ -449,10 +429,10 @@ configure(project.fineractJavaProjects) {
     configurations {
         api.setCanBeResolved(true)
     }
-    tasks.withType(Copy).configureEach {
+    tasks.withType(Copy) {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
-    tasks.withType(JavaCompile).configureEach {
+    tasks.withType(JavaCompile) {
         options.compilerArgs += [
             "-Xlint:cast",
             "-Xlint:auxiliaryclass",
@@ -558,7 +538,7 @@ configure(project.fineractJavaProjects) {
     // https://www.eclemma.org/jacoco/
     jacoco {
         toolVersion = jacocoVersion
-        reportsDirectory = layout.buildDirectory.dir("reports/jacoco")
+        reportsDirectory = file("$buildDir/reports/jacoco")
     }
 
     jacocoTestReport {
@@ -769,7 +749,7 @@ configure(project.fineractJavaProjects) {
         ]
     }
 
-    tasks.withType(Javadoc).configureEach {
+    tasks.withType(Javadoc) {
         options.addStringOption('Xdoclint:none', '-quiet')
         options.encoding = 'UTF-8'
         // Ignore any errors during javadoc generation
@@ -899,7 +879,7 @@ configure(project.fineractPublishProjects) {
     }
 }
 
-tasks.register('printSourceSetInformation') {
+task printSourceSetInformation() {
     doLast{
         sourceSets.each { srcSet ->
             println "["+srcSet.name+"]"

@@ -207,10 +207,6 @@ dependencies {
 
     implementation 'org.apache.commons:commons-math3'
 
-    // iText 2.1.7 is required by Pentaho reporting for PDF generation
-    // Pentaho libs use com.lowagie.text.pdf.FontMapper from legacy iText
-    implementation 'com.lowagie:itext:2.1.7'
-
     implementation 'io.github.classgraph:classgraph'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 
@@ -232,32 +228,4 @@ dependencies {
         exclude group: 'org.skyscreamer'
     }
     testImplementation ('org.mockito:mockito-inline')
-
-    implementation 'org.apache.groovy:groovy-all:4.0.12'
-
-    // Modern replacements for excluded legacy JARs
-    implementation 'org.mozilla:rhino:1.7.15.1'  // Replaces js-1.7R3.jar
-    implementation 'org.apache.bsf:bsf-api:3.1'  // Replaces bsf-2.4.0.jar
-
-    // Pentaho reporting libs - compileOnly for compile-time access, runtimeOnly for execution
-    // Exclude conflicting JARs:
-    // - postgresql: conflicts with project's newer version (42.7.8 vs 42.2.12)
-    // - bsh-1.3.0: conflicts with bsh-2.0b6 from Gradle cache
-    // - wizard-xul-9.2.0.0-SNAPSHOT: duplicate of wizard-xul-9.4.0.0-343
-    // - js-1.7R3: old Rhino JavaScript engine causes JVM crash (SIGSEGV) on Java 21
-    // - bsf-2.4.0: Bean Scripting Framework has incompatible native code for Java 21
-    compileOnly fileTree(dir: 'libs', include: '*.jar', excludes: [
-        'postgresql-*.jar',
-        'bsh-1.3.0.jar',
-        'wizard-xul-9.2.0.0-SNAPSHOT.jar',
-        'js-1.7R3.jar',
-        'bsf-2.4.0.jar'
-    ])
-    runtimeOnly fileTree(dir: 'libs', include: '*.jar', excludes: [
-        'postgresql-*.jar',
-        'bsh-1.3.0.jar',
-        'wizard-xul-9.2.0.0-SNAPSHOT.jar',
-        'js-1.7R3.jar',
-        'bsf-2.4.0.jar'
-    ])
 }

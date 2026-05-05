@@ -51,7 +51,7 @@ Feature: Core Infrastructure
     When The database migration process is executed
     Then The tenant store and the default tenant gets upgraded from scratch
 
-  @infrastructure @ignore
+  @infrastructure
   Scenario: Verify that schema migration works with the latest Flyway migrated schemas
     Given Liquibase is enabled with a default tenant
     Given Liquibase runs the very first time for the tenant store
@@ -61,7 +61,7 @@ Feature: Core Infrastructure
     When The database migration process is executed
     Then The tenant store and the default tenant gets synced and then upgraded
 
-  @infrastructure @ignore
+  @infrastructure
   Scenario: Verify that schema migration fails when the tenant store is not on the latest Flyway migrated schemas
     Given Liquibase is enabled with a default tenant
     Given Liquibase runs the very first time for the tenant store
@@ -71,7 +71,7 @@ Feature: Core Infrastructure
     When The database migration process is executed
     Then The tenant store upgrade fails with a schema upgrade needed
 
-  @infrastructure @ignore
+  @infrastructure
   Scenario: Verify that schema migration fails when the default tenant is not on the latest Flyway migrated schemas
     Given Liquibase is enabled with a default tenant
     Given Liquibase runs the very first time for the tenant store

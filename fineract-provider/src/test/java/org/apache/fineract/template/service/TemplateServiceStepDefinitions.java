@@ -32,14 +32,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.io.IOUtils;
+import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.template.domain.Template;
 import org.apache.fineract.template.domain.TemplateMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 
 public class TemplateServiceStepDefinitions implements En {
 
-    @Autowired
-    private TemplateMergeService tms;
+    private final TemplateMergeService tms;
 
     private String template;
 
@@ -48,6 +47,8 @@ public class TemplateServiceStepDefinitions implements En {
     private String result;
 
     public TemplateServiceStepDefinitions() {
+        tms = new TemplateMergeService(new FineractProperties());
+
         Given("/^A mustache template file (.*)$/", (String file) -> {
             template = IOUtils.resourceToString("templates/" + file, StandardCharsets.UTF_8,
                     TemplateServiceStepDefinitions.class.getClassLoader());

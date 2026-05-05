@@ -243,7 +243,9 @@ bootJar {
 
 jib {
     from {
-        image = 'azul/zulu-openjdk-alpine:21'
+        // Using Zulu OpenJDK Ubuntu-based image which includes fontconfig and fonts for Pentaho reports
+        // Note: Alpine and Debian variants do NOT include fonts
+        image = 'azul/zulu-openjdk:21'
         platforms {
             platform {
                 architecture = System.getProperty("os.arch").equals("aarch64")?"arm64":"amd64"
@@ -264,7 +266,7 @@ jib {
         creationTime = 'USE_CURRENT_TIMESTAMP'
         mainClass = 'org.apache.fineract.ServerApplication'
         extraClasspath = ['/app/plugins/*']
-        args = [
+        jvmFlags = [
             '-Duser.home=/tmp',
             '-Dfile.encoding=UTF-8',
             '-Duser.timezone=UTC',
@@ -272,7 +274,22 @@ jib {
         ]
         ports = ['8080/tcp', '8443/tcp']
         labels = [maintainer: 'Aleksandar Vidakovic <aleks@apache.org>']
-        user = 'nobody:nogroup'
+        user = 'root'
+    }
+
+    extraDirectories {
+        paths {
+            path {
+                from = "${buildDir}/jib-extra-directory"
+                into = '/'
+            }
+        }
+        permissions = [
+            '/.mifosx': '755',
+            '/.mifosx/pentahoReports': '755',
+            '/.mifosx/pentahoReports/pentahoReportsPostgres': '755',
+            '/.mifosx/pentahoReports/pentahoReportsPostgres/*': '644'
+        ]
     }
 
     extraDirectories {
@@ -311,6 +328,7 @@ cucumber {
     tags = 'not @ignore'
     main = 'io.cucumber.core.cli.Main'
     shorten = 'argfile'
+    glue = 'classpath:org/apache/fineract'
     plugin = [
         'pretty',
         'html:build/reports/cucumber/report.html',
@@ -337,6 +355,30 @@ tasks.register('copyDatadogAgent', Copy) {
 
 tasks.jib.dependsOn(copyDatadogAgent, bootJar, resolve)
 tasks.jibDockerBuild.dependsOn(copyDatadogAgent, bootJar, resolve)
+
+// Task to copy Pentaho reports for deployment
+tasks.register('copyPentahoReports', Copy) {
+    description = 'Copies Pentaho report files to build directory for deployment'
+    from 'pentahoReports'
+    into "${buildDir}/pentahoReports"
+    include '*.prpt'
+    include '*.properties'
+    include '*.png'
+}
+
+// Task to prepare reports for Docker/Jib deployment
+// Reports are placed at /.mifosx/pentahoReports/pentahoReportsPostgres in the container
+// Set env FINERACT_PENTAHO_REPORTS_PATH=/.mifosx/pentahoReports in Kubernetes YAML
+tasks.register('preparePentahoReportsForDocker', Copy) {
+    description = 'Copies Pentaho reports to a location for Docker image'
+    dependsOn copyPentahoReports
+    from "${buildDir}/pentahoReports"
+    into "${buildDir}/jib-extra-directory/.mifosx/pentahoReports/pentahoReportsPostgres"
+}
+
+// Ensure Pentaho reports are included in Docker builds
+tasks.jib.dependsOn(preparePentahoReportsForDocker)
+tasks.jibDockerBuild.dependsOn(preparePentahoReportsForDocker)
 
 // Configuration for git properties gradle plugin
 // https://github.com/n0mer/gradle-git-properties

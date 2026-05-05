@@ -21,12 +21,11 @@ package org.apache.fineract.infrastructure.springbatch;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java8.En;
+import java.util.List;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
-import org.springframework.beans.factory.annotation.Autowired;
 
 public class SpringBatchPropertyServiceDefinitions implements En {
 
-    @Autowired
     private FineractProperties fineractProperties;
     private PropertyService propertyService;
     private int partitionSize;
@@ -35,6 +34,15 @@ public class SpringBatchPropertyServiceDefinitions implements En {
 
     public SpringBatchPropertyServiceDefinitions() {
         Given("Property Service is initialized", () -> {
+            fineractProperties = new FineractProperties();
+            FineractProperties.FineractPartitionedJob partitionedJob = new FineractProperties.FineractPartitionedJob();
+            FineractProperties.PartitionedJobProperty prop = new FineractProperties.PartitionedJobProperty();
+            prop.setJobName("LOAN_COB");
+            prop.setChunkSize(100);
+            prop.setPartitionSize(100);
+            prop.setRetryLimit(5);
+            partitionedJob.setPartitionedJobProperties(List.of(prop));
+            fineractProperties.setPartitionedJob(partitionedJob);
             propertyService = new PropertyServiceImpl(fineractProperties);
         });
 

@@ -1,6 +1,6 @@
 name: Build dev image
 
-# Builds an immutable dev-<sha> image and auto-deploys to dev ECS.
+# Builds an immutable <sha>-dev image and auto-deploys to dev ECS.
 # Triggered on push to prezzee/dev, or manually (with optional commit SHA rebuild).
 
 on:
@@ -45,7 +45,7 @@ jobs:
         id: meta
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "image_tag=dev-$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "image_tag=$SHORT_SHA-dev" >> $GITHUB_OUTPUT
 
       - name: Set up JDK 21
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4

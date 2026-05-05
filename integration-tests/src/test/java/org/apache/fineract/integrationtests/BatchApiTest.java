@@ -2563,9 +2563,8 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
 
         final float holdAmount = 10F;
         final float withdrawalAmount = 80F;
-        final float depositAmount = 300F;
         final BatchRequest getSavingAccountRequest = BatchHelper.getSavingAccount(1L, Long.valueOf(savingsId), "chargeStatus=all", null);
-        final BatchRequest depositSavingAccountRequest = BatchHelper.depositSavingAccount(2L, 1L, depositAmount);
+        final BatchRequest depositSavingAccountRequest = BatchHelper.depositSavingAccount(2L, 1L, 300F);
         final BatchRequest holdAmountOnSavingAccountRequest = BatchHelper.holdAmountOnSavingAccount(3L, 1L, holdAmount);
 
         final List<BatchRequest> batchRequests1 = Arrays.asList(getSavingAccountRequest, depositSavingAccountRequest,
@@ -2581,6 +2580,7 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
 
         HashMap accountDetails = savingsAccountHelper.getSavingsDetails(savingsId);
         ArrayList<HashMap<String, Object>> transactions = (ArrayList<HashMap<String, Object>>) accountDetails.get("transactions");
+        final float runningBalanceBeforeBatch = (float) transactions.get(0).get("runningBalance");
 
         final BatchRequest releaseAmountOnSavingAccountRequest = BatchHelper.releaseAmountOnSavingAccount(2L, 1L, holdAmountTransactionId);
         final BatchRequest withdrawSavingAccountRequest1 = BatchHelper.withdrawSavingAccount(3L, 1L, withdrawalAmount);
@@ -2599,80 +2599,16 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
         accountDetails = savingsAccountHelper.getSavingsDetails(savingsId);
         transactions = (ArrayList<HashMap<String, Object>>) accountDetails.get("transactions");
 
-        // Hold & Release Enhancement (Qi-cards style):
-        // Release now creates TWO transactions:
-        // 1. Release transaction - returns held amount to available balance
-        // 2. System withdrawal transaction - performs actual deduction from account
-        //
-        // Transaction order (newest first, index 0 = most recent):
-        // [0] = Withdrawal 2 (user withdrawal 80)
-        // [1] = Withdrawal 1 (user withdrawal 80)
-        // [2] = System Withdrawal (from release - deducts holdAmount)
-        // [3] = Release (returns holdAmount to available)
-        // [4] = Hold (original hold)
-        // [5] = Deposit (original deposit)
-        //
-        // Running balance calculations:
-        // - After deposit: 300
-        // - After hold: 300 (hold doesn't change account balance)
-        // - After release: 300 (release returns to available)
-        // - After system withdrawal (from release): 300 - 10 = 290 (actual deduction)
-        // - After user withdrawal 1: 290 - 80 = 210
-        // - After user withdrawal 2: 210 - 80 = 130
+        final HashMap<String, Object> transactionRelease = transactions.get(2);
+        final HashMap<String, Object> transactionWithdrawal1 = transactions.get(1);
+        final HashMap<String, Object> transactionWithdrawal2 = transactions.get(0);
 
-        // Find transactions by type for more robust verification
-        HashMap<String, Object> releaseTransaction = null;
-        HashMap<String, Object> systemWithdrawalFromRelease = null;
-        HashMap<String, Object> userWithdrawal1 = null;
-        HashMap<String, Object> userWithdrawal2 = null;
-
-        for (HashMap<String, Object> tx : transactions) {
-            HashMap<String, Object> txType = (HashMap<String, Object>) tx.get("transactionType");
-            Integer typeId = (Integer) txType.get("id");
-            Boolean isFromHoldRelease = (Boolean) tx.get("isFromHoldRelease");
-
-            if (Integer.valueOf(21).equals(typeId)) { // AMOUNT_RELEASE
-                releaseTransaction = tx;
-            } else if (Integer.valueOf(2).equals(typeId)) { // WITHDRAWAL
-                if (Boolean.TRUE.equals(isFromHoldRelease)) {
-                    systemWithdrawalFromRelease = tx;
-                } else if (userWithdrawal2 == null) {
-                    userWithdrawal2 = tx; // Most recent user withdrawal (index 0)
-                } else {
-                    userWithdrawal1 = tx; // Second user withdrawal
-                }
-            }
-        }
-
-        // Verify release transaction running balance
-        // Release running balance = accountBalance - onHold + releaseAmount = 300 - 10 + 10 = 300
-        // (release makes the held amount available again, so running balance returns to depositAmount)
-        Assertions.assertNotNull(releaseTransaction, "Release transaction should exist");
-        assertEquals(depositAmount, ((Number) releaseTransaction.get("runningBalance")).floatValue(),
-                "Verify running balance after release amount - should equal deposit amount (release restores available balance)");
-
-        // Verify system withdrawal from release (actual deduction)
-        // This is the Qi-cards enhancement - release creates a withdrawal to deduct the amount
-        // System withdrawal running balance = depositAmount - holdAmount = 300 - 10 = 290
-        Assertions.assertNotNull(systemWithdrawalFromRelease, "System withdrawal from release should exist");
-        assertEquals(depositAmount - holdAmount, ((Number) systemWithdrawalFromRelease.get("runningBalance")).floatValue(),
-                "Verify running balance after system withdrawal from release - actual deduction");
-
-        // Verify user withdrawals
-        Assertions.assertNotNull(userWithdrawal1, "First user withdrawal should exist");
-        assertEquals(depositAmount - holdAmount - withdrawalAmount, ((Number) userWithdrawal1.get("runningBalance")).floatValue(),
-                "Verify running balance after first user withdrawal");
-
-        Assertions.assertNotNull(userWithdrawal2, "Second user withdrawal should exist");
-        assertEquals(depositAmount - holdAmount - withdrawalAmount - withdrawalAmount,
-                ((Number) userWithdrawal2.get("runningBalance")).floatValue(), "Verify running balance after second user withdrawal");
-
-        // Verify final account balance
-        HashMap summary = (HashMap) accountDetails.get("summary");
-        float finalAccountBalance = ((Number) summary.get("accountBalance")).floatValue();
-        float expectedFinalBalance = depositAmount - holdAmount - withdrawalAmount - withdrawalAmount;
-        assertEquals(expectedFinalBalance, finalAccountBalance,
-                "Verify final account balance reflects all deductions including hold release");
+        assertEquals(runningBalanceBeforeBatch + holdAmount, transactionRelease.get("runningBalance"),
+                "Verify running balance after release amount");
+        assertEquals(runningBalanceBeforeBatch + holdAmount - withdrawalAmount, transactionWithdrawal1.get("runningBalance"),
+                "Verify running balance after first withdrawal");
+        assertEquals(runningBalanceBeforeBatch + holdAmount - withdrawalAmount - withdrawalAmount,
+                transactionWithdrawal2.get("runningBalance"), "Verify running balance after second withdrawal");
     }
 
     @Test

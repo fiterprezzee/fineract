@@ -19,15 +19,12 @@
 package org.apache.fineract.portfolio.savings.domain;
 
 import jakarta.persistence.LockModeType;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -56,35 +53,4 @@ public interface SavingsAccountTransactionRepository
     @Query("select sat from SavingsAccountTransaction sat where sat.savingsAccount.id = :savingsId and sat.dateOf <= :transactionDate and sat.reversed=false")
     List<SavingsAccountTransaction> findBySavingsAccountIdAndLessThanDateOfAndReversedIsFalse(@Param("savingsId") Long savingsId,
             @Param("transactionDate") LocalDate transactionDate, Pageable pageable);
-
-    // Hold & Release Enhancement - New methods
-
-    /**
-     * Find transaction by ID with pessimistic lock for concurrent access protection
-     */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select st from SavingsAccountTransaction st where st.id = :transactionId")
-    Optional<SavingsAccountTransaction> findByIdWithLock(@Param("transactionId") Long transactionId);
-
-    /**
-     * Atomic decrement of remaining hold amount with race condition protection
-     */
-    @Modifying
-    @Query("UPDATE SavingsAccountTransaction t SET t.remainingHoldAmount = t.remainingHoldAmount - :amount "
-            + "WHERE t.id = :holdId AND t.remainingHoldAmount >= :amount")
-    int decrementRemainingHoldAmount(@Param("holdId") Long holdId, @Param("amount") BigDecimal amount);
-
-    /**
-     * Check if active (non-reversed) child transactions exist for a hold
-     */
-    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM SavingsAccountTransaction t "
-            + "WHERE t.holdTransactionId = :holdId AND t.reversed = false AND t.id != :holdId")
-    boolean existsActiveChildTransactions(@Param("holdId") Long holdId);
-
-    /**
-     * Find active withdrawal for a release transaction
-     */
-    @Query("SELECT t.id FROM SavingsAccountTransaction t "
-            + "WHERE t.relatedTransactionId = :releaseId AND t.typeOf = 2 AND t.reversed = false")
-    Optional<Long> findActiveWithdrawalForRelease(@Param("releaseId") Long releaseId);
 }

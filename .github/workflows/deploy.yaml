@@ -148,7 +148,7 @@ jobs:
           # Derive the commit tag suffix that matches this environment's builds
           case "${{ inputs.environment }}" in
             dev)     SUFFIX=-dev  ;;
-            staging) SUFFIX=-uat  ;;
+            staging|uat) SUFFIX=-staging  ;;
             prod)    SUFFIX=-prod ;;
           esac
 

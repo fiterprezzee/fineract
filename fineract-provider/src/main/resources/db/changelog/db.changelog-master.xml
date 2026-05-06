@@ -41,5 +41,5 @@
     <include file="tenant/final-changelog-tenant.xml" relativeToChangelogFile="true" context="tenant_db AND !initial_switch"/>
 
     <!-- CUSTOM CHANGESETS -->
-    <include file="tenant/custom-changelog-tenant.xml" relativeToChangelogFile="true"/>
+    <include file="tenant/custom-changelog-tenant.xml" relativeToChangelogFile="true" context="tenant_db AND !initial_switch"/>
 </databaseChangeLog>

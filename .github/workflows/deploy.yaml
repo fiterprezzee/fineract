@@ -21,7 +21,7 @@ on:
           - staging
           - prod
       version:
-        description: Image tag from the build workflow (e.g. dev-abc1234)
+        description: Image tag from the build workflow (e.g. abc1234-dev)
         required: true
         type: string
 
@@ -145,11 +145,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Derive the commit tag prefix that matches this environment's builds
+          # Derive the commit tag suffix that matches this environment's builds
           case "${{ inputs.environment }}" in
-            dev)     PREFIX=dev-  ;;
-            staging) PREFIX=uat-  ;;
-            prod)    PREFIX=main- ;;
+            dev)     SUFFIX=-dev  ;;
+            staging|uat) SUFFIX=-staging  ;;
+            prod)    SUFFIX=-prod ;;
           esac
 
           PREV_DIGEST=$(aws ecr batch-get-image \
@@ -162,7 +162,7 @@ jobs:
             PREV_COMMIT_TAG=$(aws ecr describe-images \
               --repository-name "$ECR_REPOSITORY" \
               --image-ids imageDigest="$PREV_DIGEST" \
-              --query "imageDetails[0].imageTags[?starts_with(@, \`${PREFIX}\`)] | [0]" \
+              --query "imageDetails[0].imageTags[?ends_with(@, \`${SUFFIX}\`)] | [0]" \
               --output text 2>/dev/null || echo "")
             echo "prev_digest=$PREV_DIGEST"               >> $GITHUB_OUTPUT
             echo "prev_commit_tag=${PREV_COMMIT_TAG:-}"   >> $GITHUB_OUTPUT

@@ -39,7 +39,6 @@
     <include file="/db/changelog/tenant/module/progressiveloan/module-changelog-master.xml" context="tenant_db AND !initial_switch"/>
     <!-- Scripts to run after the modules were initialized  -->
     <include file="tenant/final-changelog-tenant.xml" relativeToChangelogFile="true" context="tenant_db AND !initial_switch"/>
-
     <!-- CUSTOM CHANGESETS -->
     <include file="tenant/custom-changelog-tenant.xml" relativeToChangelogFile="true" context="tenant_db AND !initial_switch"/>
 </databaseChangeLog>

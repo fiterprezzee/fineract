@@ -243,7 +243,9 @@ bootJar {
 
 jib {
     from {
-        image = 'azul/zulu-openjdk-alpine:21'
+        // Using Zulu OpenJDK Ubuntu-based image which includes fontconfig and fonts for Pentaho reports
+        // Note: Alpine and Debian variants do NOT include fonts
+        image = 'azul/zulu-openjdk:21'
         platforms {
             platform {
                 architecture = System.getProperty("os.arch").equals("aarch64")?"arm64":"amd64"
@@ -282,6 +284,12 @@ jib {
                 into = '/'
             }
         }
+        permissions = [
+                '/.mifosx': '755',
+                '/.mifosx/pentahoReports': '755',
+                '/.mifosx/pentahoReports/pentahoReportsPostgres': '755',
+                '/.mifosx/pentahoReports/pentahoReportsPostgres/*': '644'
+        ]
     }
 
     allowInsecureRegistries = true

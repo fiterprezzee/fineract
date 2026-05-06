@@ -126,6 +126,10 @@ dependencies {
         exclude group: 'org.bouncycastle', module: 'bcjmail-jdk18on'
     }
 
+    // iText 2.1.7 is required by Pentaho reporting for PDF generation
+    // Pentaho libs use com.lowagie.text.pdf.FontMapper from legacy iText
+    implementation 'com.lowagie:itext:2.1.7'
+
     implementation 'software.amazon.msk:aws-msk-iam-auth'
 
     implementation 'io.swagger.core.v3:swagger-jaxrs2-jakarta'

@@ -56,6 +56,13 @@ while IFS= read -r -d $'\0' file; do
     echo "Skipping loan feature: $filename" >&2
     continue
   fi
+  # Additional loan-domain features whose names don't start with "Loan".
+  case "$filename" in
+    EMICalculation.feature|AssetExternalization.feature|0_COB.feature)
+      echo "Skipping loan-domain feature: $filename" >&2
+      continue
+      ;;
+  esac
   scenario_count=$(count_scenarios "$file")
   echo "$scenario_count $rel_path"
 done < <(find "$FEATURES_DIR" -type f -name '*.feature' -print0) | sort -nr > "$TEMP_FILE"

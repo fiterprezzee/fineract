@@ -30,13 +30,27 @@ fi
 
 echo "🔍 Searching for eligible JUnit test classes..."
 
+# Client scope reduction: only savings-account coverage is in scope, so loan
+# tests are filtered out at two levels — entire loan modules are pruned by
+# -not -path, and any remaining *Loan* basenames are dropped below.
 ALL_TESTS=$(find . -type f -path "*/src/test/java/*.java" \
+  -not -path "./fineract-loan/*" \
+  -not -path "./fineract-progressive-loan/*" \
+  -not -path "./fineract-progressive-loan-embeddable-schedule-generator/*" \
+  -not -path "./custom/acme/loan/*" \
   | while read filepath; do
       filename=$(basename "$filepath")
 
       # Skip abstract class or interface by name
       if [[ "$filename" =~ ^Abstract.*Test\.java$ || "$filename" =~ .*AbstractTest\.java$ ]]; then
         echo "Skipping abstract-named file: $filename" >&2
+        continue
+      fi
+
+      # Skip loan tests by basename. Allowlist exception:
+      # LoanAccountDisbursementToSavingsWithAutoDownPaymentTest exercises a savings flow.
+      if [[ "$filename" == *Loan* && "$filename" != "LoanAccountDisbursementToSavingsWithAutoDownPaymentTest.java" ]]; then
+        echo "Skipping loan test: $filename" >&2
         continue
       fi
 

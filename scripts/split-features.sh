@@ -50,6 +50,12 @@ echo "Analyzing feature files to count scenarios..."
 while IFS= read -r -d $'\0' file; do
   # Remove the 'fineract-e2e-tests-runner/' prefix
   rel_path="${file#fineract-e2e-tests-runner/}"
+  # Client scope reduction: drop loan-named feature files; only savings coverage is in scope.
+  filename=$(basename "$file")
+  if [[ "$filename" == Loan*.feature ]]; then
+    echo "Skipping loan feature: $filename" >&2
+    continue
+  fi
   scenario_count=$(count_scenarios "$file")
   echo "$scenario_count $rel_path"
 done < <(find "$FEATURES_DIR" -type f -name '*.feature' -print0) | sort -nr > "$TEMP_FILE"

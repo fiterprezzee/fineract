@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: [test-core-1, test-core-2, test-core-3]
+        task: [test-core-1, test-core-2, test-core-3, test-core-4, test-core-5]
 
     services:
       postgresql:
@@ -91,7 +91,7 @@ jobs:
         run: |
           chmod +x scripts/split-tests.sh
           SHARD_INDEX=$(echo "${{ matrix.task }}" | awk -F'-' '{print $3}')
-          ./scripts/split-tests.sh 3 $SHARD_INDEX
+          ./scripts/split-tests.sh 5 $SHARD_INDEX
           cat "shard-tests_${SHARD_INDEX}.txt"
 
       - name: Run Gradle Task

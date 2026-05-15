@@ -27,14 +27,25 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * V2 Command Handler for Release Amount with Withdrawal.
+ *
+ * This handler processes the combined release + withdrawal operation in a single atomic transaction.
+ *
+ * Key differences from V1 (ReleaseAmountSavingsAccountCommandHandler): - V1: Performs release only (no withdrawal, no
+ * journal entries) - V2: Performs release + withdrawal in one call (journal entries created during withdrawal)
+ *
+ * Transaction linkage is maintained: holdId → releaseId → withdrawalId
+ */
 @Service
-@CommandType(entity = "SAVINGSACCOUNT", action = "RELEASEAMOUNT")
-public class ReleaseAmountSavingsAccountCommandHandler implements NewCommandSourceHandler {
+@CommandType(entity = "SAVINGSACCOUNT", action = "RELEASEAMOUNTWITHWITHDRAWAL")
+public class ReleaseAmountWithWithdrawalSavingsAccountCommandHandler implements NewCommandSourceHandler {
 
     private final SavingsAccountWritePlatformService writePlatformService;
 
     @Autowired
-    public ReleaseAmountSavingsAccountCommandHandler(final SavingsAccountWritePlatformService savingAccountWritePlatformService) {
+    public ReleaseAmountWithWithdrawalSavingsAccountCommandHandler(
+            final SavingsAccountWritePlatformService savingAccountWritePlatformService) {
         this.writePlatformService = savingAccountWritePlatformService;
     }
 
@@ -42,7 +53,6 @@ public class ReleaseAmountSavingsAccountCommandHandler implements NewCommandSour
     @Override
     public CommandProcessingResult processCommand(JsonCommand command) {
         final Long transactionId = Long.valueOf(command.getTransactionId());
-        return this.writePlatformService.releaseAmount(command.getSavingsId(), transactionId, command);
+        return this.writePlatformService.releaseAmountWithWithdrawal(command.getSavingsId(), transactionId, command);
     }
-
 }

@@ -292,7 +292,8 @@ public class SavingsAccountTransactionDataValidator {
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
     }
 
-    public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction) {
+    public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction,
+            final JsonCommand command) {
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
                 .resource(SAVINGS_ACCOUNT_RESOURCE_NAME);
@@ -313,7 +314,16 @@ public class SavingsAccountTransactionDataValidator {
         }
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
+
+        // Extract transactionDate from command, default to business date if not provided
         LocalDate transactionDate = DateUtils.getBusinessLocalDate();
+        if (command != null && command.parsedJson() != null) {
+            final JsonElement element = command.parsedJson();
+            if (this.fromApiJsonHelper.parameterExists(transactionDateParamName, element)) {
+                transactionDate = this.fromApiJsonHelper.extractLocalDateNamed(transactionDateParamName, element);
+            }
+        }
+
         SavingsAccountTransaction transaction = SavingsAccountTransaction.releaseAmount(holdTransaction, transactionDate);
         return transaction;
     }

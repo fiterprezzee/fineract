@@ -1817,16 +1817,11 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
     }
 
     /**
-     * V1 Release Amount - performs release only, no withdrawal.
-     *
-     * This method releases the hold without creating a withdrawal transaction. No journal entries are created. Clients
-     * must call the separate withdrawal endpoint if they need to withdraw the released funds.
-     *
-     * For combined release + withdrawal in a single call, use releaseAmountWithWithdrawal (V2).
+     * V1 Release Amount - performs release only (no withdrawal, no journal entries).
      */
     @Transactional
     @Override
-    public CommandProcessingResult releaseAmount(final Long savingsId, final Long savingsTransactionId, final JsonCommand command) {
+    public CommandProcessingResult releaseAmount(final Long savingsId, final Long savingsTransactionId) {
         context.authenticatedUser();
 
         // Lock account first to prevent concurrent modifications
@@ -1843,6 +1838,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         // Validate remaining hold amount
         BigDecimal remainingHold = holdTransaction.getRemainingHoldAmount();
         if (remainingHold == null) {
+            // Old transaction without remaining_hold_amount - use full amount
             remainingHold = holdTransaction.getAmount();
         }
         if (remainingHold.compareTo(BigDecimal.ZERO) == 0) {
@@ -1851,7 +1847,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         }
 
         final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
-                .validateReleaseAmountAndAssembleForm(holdTransaction, command);
+                .validateReleaseAmountAndAssembleForm(holdTransaction);
 
         BigDecimal releaseAmount = releaseTxn.getAmount();
 
@@ -1874,7 +1870,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(releaseTxn.getTransactionDate(), account);
 
-        // Release the hold
+        // Release the hold (updates account's on-hold balance)
         account.releaseOnHoldAmount(releaseAmount);
 
         // Save release transaction
@@ -1888,8 +1884,11 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
                     "Hold was modified concurrently", holdTransaction.getId());
         }
 
-        // V1: No journal entries for release only
-        // Add transaction to account
+        // V1: NO withdrawal transaction created, NO journal entries posted
+        // Funds are simply released back to available balance
+        // Client can call withdraw endpoint separately if needed
+
+        // Add release transaction to account
         account.addTransaction(releaseTxn);
 
         if (backdatedTxnsAllowedTill) {
@@ -1898,7 +1897,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         this.savingAccountRepositoryWrapper.saveAndFlush(account);
 
-        // Build response with transaction IDs
+        // Build response with release transaction ID and hold transaction ID
         Map<String, Object> changes = new HashMap<>();
         changes.put("releaseTransactionId", releaseTxn.getId());
         changes.put("holdTransactionId", holdTransaction.getId());

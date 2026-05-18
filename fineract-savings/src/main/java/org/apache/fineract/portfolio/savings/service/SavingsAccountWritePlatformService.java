@@ -111,22 +111,8 @@ public interface SavingsAccountWritePlatformService {
 
     CommandProcessingResult unblockDebits(Long savingsId);
 
-    CommandProcessingResult releaseAmount(Long savingsId, Long transactionId, JsonCommand command);
+    CommandProcessingResult releaseAmount(Long savingsId, Long transactionId);
 
-    /**
-     * V2: Release amount with withdrawal in a single atomic transaction.
-     *
-     * This method performs: 1. Release hold (no journal entry) 2. Create withdrawal transaction (journal entries posted
-     * here) 3. Link transaction IDs: holdId → releaseId → withdrawalId
-     *
-     * @param savingsId
-     *            the savings account ID
-     * @param transactionId
-     *            the hold transaction ID to release
-     * @param command
-     *            the JSON command containing transactionDate, locale, dateFormat, note
-     * @return CommandProcessingResult with all linked transaction IDs
-     */
     CommandProcessingResult releaseAmountWithWithdrawal(Long savingsId, Long transactionId, JsonCommand command);
 
     CommandProcessingResult gsimActivate(Long gsimId, JsonCommand command);

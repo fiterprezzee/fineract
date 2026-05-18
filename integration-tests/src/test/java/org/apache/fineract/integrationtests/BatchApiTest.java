@@ -2543,6 +2543,9 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
         assertEquals(409, errorResponse.getHttpStatusCode());
     }
 
+    /**
+     * Test for verifying running balance calculation after batch operations with V1 release.
+     */
     @Test
     public void verifyCalculatingRunningBalanceAfterBatchWithReleaseAmount() {
         final SavingsProductHelper savingsProductHelper = new SavingsProductHelper();
@@ -2599,80 +2602,76 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
         accountDetails = savingsAccountHelper.getSavingsDetails(savingsId);
         transactions = (ArrayList<HashMap<String, Object>>) accountDetails.get("transactions");
 
-        // Hold & Release Enhancement (Qi-cards style):
-        // Release now creates TWO transactions:
-        // 1. Release transaction - returns held amount to available balance
-        // 2. System withdrawal transaction - performs actual deduction from account
+        // V1 Release behavior (release only, no withdrawal):
+        // Release returns held amount to available balance but does NOT create withdrawal.
+        // Account balance remains unchanged after release.
         //
         // Transaction order (newest first, index 0 = most recent):
         // [0] = Withdrawal 2 (user withdrawal 80)
         // [1] = Withdrawal 1 (user withdrawal 80)
-        // [2] = System Withdrawal (from release - deducts holdAmount)
-        // [3] = Release (returns holdAmount to available)
-        // [4] = Hold (original hold)
-        // [5] = Deposit (original deposit)
+        // [2] = Release (returns holdAmount to available, NO account balance change)
+        // [3] = Hold (original hold)
+        // [4] = Deposit (original deposit)
         //
-        // Running balance calculations:
+        // Running balance calculations with V1 release:
         // - After deposit: 300
         // - After hold: 300 (hold doesn't change account balance)
-        // - After release: 300 (release returns to available)
-        // - After system withdrawal (from release): 300 - 10 = 290 (actual deduction)
-        // - After user withdrawal 1: 290 - 80 = 210
-        // - After user withdrawal 2: 210 - 80 = 130
+        // - After V1 release: 300 (release only returns to available, no deduction)
+        // - After user withdrawal 1: 300 - 80 = 220
+        // - After user withdrawal 2: 220 - 80 = 140
 
-        // Find transactions by type for more robust verification
+        // Find transactions by type for verification
         HashMap<String, Object> releaseTransaction = null;
-        HashMap<String, Object> systemWithdrawalFromRelease = null;
         HashMap<String, Object> userWithdrawal1 = null;
         HashMap<String, Object> userWithdrawal2 = null;
+        int withdrawalCount = 0;
 
         for (HashMap<String, Object> tx : transactions) {
             HashMap<String, Object> txType = (HashMap<String, Object>) tx.get("transactionType");
             Integer typeId = (Integer) txType.get("id");
-            Boolean isFromHoldRelease = (Boolean) tx.get("isFromHoldRelease");
 
             if (Integer.valueOf(21).equals(typeId)) { // AMOUNT_RELEASE
                 releaseTransaction = tx;
             } else if (Integer.valueOf(2).equals(typeId)) { // WITHDRAWAL
-                if (Boolean.TRUE.equals(isFromHoldRelease)) {
-                    systemWithdrawalFromRelease = tx;
-                } else if (userWithdrawal2 == null) {
+                // V1 release does NOT create system withdrawal, so all withdrawals are user withdrawals
+                withdrawalCount++;
+                if (userWithdrawal2 == null) {
                     userWithdrawal2 = tx; // Most recent user withdrawal (index 0)
-                } else {
+                } else if (userWithdrawal1 == null) {
                     userWithdrawal1 = tx; // Second user withdrawal
                 }
             }
         }
 
+        // V1 Release: Should only have 2 withdrawals (both user-initiated), NO system withdrawal
+        assertEquals(2, withdrawalCount, "V1 Release should NOT create system withdrawal - only 2 user withdrawals expected");
+
         // Verify release transaction running balance
-        // Release running balance = accountBalance - onHold + releaseAmount = 300 - 10 + 10 = 300
-        // (release makes the held amount available again, so running balance returns to depositAmount)
+        // V1 Release running balance = accountBalance (unchanged) = 300
+        // (release makes the held amount available again, but doesn't change account balance)
         Assertions.assertNotNull(releaseTransaction, "Release transaction should exist");
         assertEquals(depositAmount, ((Number) releaseTransaction.get("runningBalance")).floatValue(),
-                "Verify running balance after release amount - should equal deposit amount (release restores available balance)");
+                "V1 Release: running balance should equal deposit amount (no deduction, release only)");
 
-        // Verify system withdrawal from release (actual deduction)
-        // This is the Qi-cards enhancement - release creates a withdrawal to deduct the amount
-        // System withdrawal running balance = depositAmount - holdAmount = 300 - 10 = 290
-        Assertions.assertNotNull(systemWithdrawalFromRelease, "System withdrawal from release should exist");
-        assertEquals(depositAmount - holdAmount, ((Number) systemWithdrawalFromRelease.get("runningBalance")).floatValue(),
-                "Verify running balance after system withdrawal from release - actual deduction");
-
-        // Verify user withdrawals
+        // Verify user withdrawals (with V1 release, first withdrawal deducts from full deposit amount)
+        // First user withdrawal: 300 - 80 = 220
         Assertions.assertNotNull(userWithdrawal1, "First user withdrawal should exist");
-        assertEquals(depositAmount - holdAmount - withdrawalAmount, ((Number) userWithdrawal1.get("runningBalance")).floatValue(),
-                "Verify running balance after first user withdrawal");
+        assertEquals(depositAmount - withdrawalAmount, ((Number) userWithdrawal1.get("runningBalance")).floatValue(),
+                "Verify running balance after first user withdrawal (V1 release - no prior deduction)");
 
+        // Second user withdrawal: 220 - 80 = 140
         Assertions.assertNotNull(userWithdrawal2, "Second user withdrawal should exist");
-        assertEquals(depositAmount - holdAmount - withdrawalAmount - withdrawalAmount,
-                ((Number) userWithdrawal2.get("runningBalance")).floatValue(), "Verify running balance after second user withdrawal");
+        assertEquals(depositAmount - withdrawalAmount - withdrawalAmount, ((Number) userWithdrawal2.get("runningBalance")).floatValue(),
+                "Verify running balance after second user withdrawal");
 
         // Verify final account balance
+        // V1 Release: Final balance = deposit - withdrawal1 - withdrawal2 = 300 - 80 - 80 = 140
+        // (hold amount is NOT deducted because V1 release doesn't create withdrawal)
         HashMap summary = (HashMap) accountDetails.get("summary");
         float finalAccountBalance = ((Number) summary.get("accountBalance")).floatValue();
-        float expectedFinalBalance = depositAmount - holdAmount - withdrawalAmount - withdrawalAmount;
+        float expectedFinalBalance = depositAmount - withdrawalAmount - withdrawalAmount;
         assertEquals(expectedFinalBalance, finalAccountBalance,
-                "Verify final account balance reflects all deductions including hold release");
+                "V1 Release: final account balance should NOT include hold deduction (release only)");
     }
 
     @Test

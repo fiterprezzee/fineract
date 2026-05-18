@@ -328,6 +328,32 @@ public class SavingsAccountTransactionDataValidator {
         return transaction;
     }
 
+    public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction) {
+        final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+        final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
+                .resource(SAVINGS_ACCOUNT_RESOURCE_NAME);
+
+        if (holdTransaction == null) {
+            baseDataValidator.failWithCode("validation.msg.validation.errors.exist", "Transaction not found");
+        } else if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
+            baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
+                    .failWithCode("validation.msg.amount.is.not.on.hold", "Transaction amount is not on hold");
+        }
+
+        if (holdTransaction != null) {
+            boolean isActive = holdTransaction.getSavingsAccount().isActive();
+            if (!isActive) {
+                baseDataValidator.reset().parameter(SavingsApiConstants.statusParamName)
+                        .failWithCodeNoParameterAddedToErrorCode(SavingsApiConstants.ERROR_MSG_SAVINGS_ACCOUNT_NOT_ACTIVE);
+            }
+        }
+
+        throwExceptionIfValidationWarningsExist(dataValidationErrors);
+        LocalDate transactionDate = DateUtils.getBusinessLocalDate();
+        SavingsAccountTransaction transaction = SavingsAccountTransaction.releaseAmount(holdTransaction, transactionDate);
+        return transaction;
+    }
+
     private void throwExceptionIfValidationWarningsExist(final List<ApiParameterError> dataValidationErrors) {
         if (!dataValidationErrors.isEmpty()) {
             //

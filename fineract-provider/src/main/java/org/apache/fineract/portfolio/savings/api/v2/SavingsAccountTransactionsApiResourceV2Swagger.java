@@ -30,44 +30,140 @@ public final class SavingsAccountTransactionsApiResourceV2Swagger {
     @Schema(description = "V2 Release Amount Request")
     public static final class ReleaseAmountV2Request {
 
+        private String locale;
+        private String dateFormat;
+        private String transactionDate;
+        private String note;
+
         private ReleaseAmountV2Request() {}
 
         @Schema(example = "en")
-        public String locale;
+        public String getLocale() {
+            return locale;
+        }
+
+        public void setLocale(String locale) {
+            this.locale = locale;
+        }
+
         @Schema(example = "dd MMMM yyyy")
-        public String dateFormat;
+        public String getDateFormat() {
+            return dateFormat;
+        }
+
+        public void setDateFormat(String dateFormat) {
+            this.dateFormat = dateFormat;
+        }
+
         @Schema(example = "15 May 2026")
-        public String transactionDate;
+        public String getTransactionDate() {
+            return transactionDate;
+        }
+
+        public void setTransactionDate(String transactionDate) {
+            this.transactionDate = transactionDate;
+        }
+
         @Schema(example = "Release and withdraw funds")
-        public String note;
+        public String getNote() {
+            return note;
+        }
+
+        public void setNote(String note) {
+            this.note = note;
+        }
     }
 
     @Schema(description = "V2 Release Amount Response")
     public static final class ReleaseAmountV2Response {
 
+        private Long officeId;
+        private Long clientId;
+        private Long savingsId;
+        private Long resourceId;
+        private ReleaseAmountV2Changes changes;
+
         private ReleaseAmountV2Response() {}
 
         @Schema(example = "1")
-        public Long officeId;
+        public Long getOfficeId() {
+            return officeId;
+        }
+
+        public void setOfficeId(Long officeId) {
+            this.officeId = officeId;
+        }
+
         @Schema(example = "1")
-        public Long clientId;
+        public Long getClientId() {
+            return clientId;
+        }
+
+        public void setClientId(Long clientId) {
+            this.clientId = clientId;
+        }
+
         @Schema(example = "1")
-        public Long savingsId;
+        public Long getSavingsId() {
+            return savingsId;
+        }
+
+        public void setSavingsId(Long savingsId) {
+            this.savingsId = savingsId;
+        }
+
         @Schema(example = "100")
-        public Long resourceId;
-        public ReleaseAmountV2Changes changes;
+        public Long getResourceId() {
+            return resourceId;
+        }
+
+        public void setResourceId(Long resourceId) {
+            this.resourceId = resourceId;
+        }
+
+        public ReleaseAmountV2Changes getChanges() {
+            return changes;
+        }
+
+        public void setChanges(ReleaseAmountV2Changes changes) {
+            this.changes = changes;
+        }
     }
 
     @Schema(description = "V2 Release Amount Changes")
     public static final class ReleaseAmountV2Changes {
 
+        private Long holdTransactionId;
+        private Long releaseTransactionId;
+        private Long withdrawalTransactionId;
+
         private ReleaseAmountV2Changes() {}
 
         @Schema(example = "50")
-        public Long holdTransactionId;
+        public Long getHoldTransactionId() {
+            return holdTransactionId;
+        }
+
+        public void setHoldTransactionId(Long holdTransactionId) {
+            this.holdTransactionId = holdTransactionId;
+        }
+
         @Schema(example = "100")
-        public Long releaseTransactionId;
+        public Long getReleaseTransactionId() {
+            return releaseTransactionId;
+        }
+
+        public void setReleaseTransactionId(Long releaseTransactionId) {
+            this.releaseTransactionId = releaseTransactionId;
+        }
+
         @Schema(example = "101")
-        public Long withdrawalTransactionId;
+        public Long getWithdrawalTransactionId() {
+            return withdrawalTransactionId;
+        }
+
+        public void setWithdrawalTransactionId(Long withdrawalTransactionId) {
+            this.withdrawalTransactionId = withdrawalTransactionId;
+        }
     }
 }

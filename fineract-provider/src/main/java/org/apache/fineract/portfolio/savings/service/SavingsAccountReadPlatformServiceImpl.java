@@ -1114,10 +1114,7 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
                     + "sa.currency_code as currencyCode, sa.currency_digits as currencyDigits, sa.currency_multiplesof as inMultiplesOf, "
                     + "curr.name as currencyName, curr.internationalized_name_code as currencyNameCode, "
                     + "curr.display_symbol as currencyDisplaySymbol, pt.value as paymentTypeName, " + "tr.is_manual as postInterestAsOn, "
-                    + "tr.hold_transaction_id as holdTransactionId, tr.related_transaction_id as relatedTransactionId, "
-                    + "tr.transaction_sub_type as transactionSubType, tr.is_from_hold_release as isFromHoldRelease, "
-                    + "tr.remaining_hold_amount as remainingHoldAmount, tr.operation_type as operationType, "
-                    + "tr.originating_channel as originatingChannel ";
+                    + "tr.related_transaction_id as relatedTransactionId ";
         }
 
         protected static String buildFrom() {
@@ -1216,14 +1213,8 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
                     postInterestAsOn, submittedByUsername, note, isReversal, originalTransactionId, lienTransaction, releaseTransactionId,
                     reasonForBlock);
 
-            // Hold & Release Enhancement fields
-            data.setHoldTransactionId(JdbcSupport.getLong(rs, "holdTransactionId"));
+            // V2 Enhancement: Link release to withdrawal
             data.setRelatedTransactionId(JdbcSupport.getLong(rs, "relatedTransactionId"));
-            data.setTransactionSubType(rs.getString("transactionSubType"));
-            data.setIsFromHoldRelease(rs.getBoolean("isFromHoldRelease"));
-            data.setRemainingHoldAmount(JdbcSupport.getBigDecimalDefaultToNullIfZero(rs, "remainingHoldAmount"));
-            data.setOperationType(rs.getString("operationType"));
-            data.setOriginatingChannel(rs.getString("originatingChannel"));
 
             return data;
         }

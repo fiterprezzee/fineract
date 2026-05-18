@@ -81,41 +81,11 @@ public class SavingsAccountTransactionData implements Serializable {
     private final String reasonForBlock;
     private final Set<SavingsAccountChargesPaidByData> chargesPaidByData = new HashSet<>();
 
-    // Hold & Release Enhancement fields
-    private Long holdTransactionId;
+    // V2 Enhancement: Link release to withdrawal
     private Long relatedTransactionId;
-    private String transactionSubType;
-    private Boolean isFromHoldRelease;
-    private BigDecimal remainingHoldAmount;
-    private String operationType;
-    private String originatingChannel;
-
-    public void setHoldTransactionId(Long holdTransactionId) {
-        this.holdTransactionId = holdTransactionId;
-    }
 
     public void setRelatedTransactionId(Long relatedTransactionId) {
         this.relatedTransactionId = relatedTransactionId;
-    }
-
-    public void setTransactionSubType(String transactionSubType) {
-        this.transactionSubType = transactionSubType;
-    }
-
-    public void setIsFromHoldRelease(Boolean isFromHoldRelease) {
-        this.isFromHoldRelease = isFromHoldRelease;
-    }
-
-    public void setRemainingHoldAmount(BigDecimal remainingHoldAmount) {
-        this.remainingHoldAmount = remainingHoldAmount;
-    }
-
-    public void setOperationType(String operationType) {
-        this.operationType = operationType;
-    }
-
-    public void setOriginatingChannel(String originatingChannel) {
-        this.originatingChannel = originatingChannel;
     }
 
     // templates

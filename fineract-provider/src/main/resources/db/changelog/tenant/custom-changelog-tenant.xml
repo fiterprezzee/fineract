@@ -29,5 +29,6 @@
 
     <include file="custom/0001_pentaho_reports_registration.xml" relativeToChangelogFile="true"/>
     <include file="custom/0002_hold_release_enhancement.xml" relativeToChangelogFile="true"/>
+    <include file="custom/0003_hold_release_v2_cleanup.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

@@ -61,7 +61,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Tag(name = "Savings Account Transactions V2", description = "V2 Savings Account Transaction operations with combined release and withdraw")
 @RequiredArgsConstructor
-public class SavingsAccountTransactionsApiResourceV2 {
+public class SavingsAccountTransactionsV2ApiResource {
 
     private final DefaultToApiJsonSerializer<SavingsAccountTransactionData> toApiJsonSerializer;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
@@ -99,9 +99,9 @@ public class SavingsAccountTransactionsApiResourceV2 {
             + "- withdrawalTransactionId: The withdrawal transaction created\n\n" + "Example Request:\n"
             + "POST /v2/savingsaccounts/{savingsId}/transactions/{transactionId}?command=releaseAmount\n\n"
             + "Accepted command = releaseAmount")
-    @RequestBody(required = false, content = @Content(schema = @Schema(implementation = SavingsAccountTransactionsApiResourceV2Swagger.ReleaseAmountV2Request.class)))
+    @RequestBody(required = false, content = @Content(schema = @Schema(implementation = SavingsAccountTransactionsV2ApiResourceSwagger.ReleaseAmountV2Request.class)))
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SavingsAccountTransactionsApiResourceV2Swagger.ReleaseAmountV2Response.class))) })
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SavingsAccountTransactionsV2ApiResourceSwagger.ReleaseAmountV2Response.class))) })
     public String releaseAmountWithWithdrawal(
             @PathParam("savingsId") @Parameter(description = "The savings account ID") final Long savingsId,
             @PathParam("transactionId") @Parameter(description = "The hold transaction ID to release") final Long transactionId,

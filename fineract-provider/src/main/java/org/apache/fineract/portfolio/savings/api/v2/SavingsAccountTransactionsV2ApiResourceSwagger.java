@@ -23,9 +23,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /**
  * Swagger documentation for V2 Savings Account Transactions API.
  */
-public final class SavingsAccountTransactionsApiResourceV2Swagger {
+public final class SavingsAccountTransactionsV2ApiResourceSwagger {
 
-    private SavingsAccountTransactionsApiResourceV2Swagger() {}
+    private SavingsAccountTransactionsV2ApiResourceSwagger() {}
 
     @Schema(description = "V2 Release Amount Request")
     public static final class ReleaseAmountV2Request {

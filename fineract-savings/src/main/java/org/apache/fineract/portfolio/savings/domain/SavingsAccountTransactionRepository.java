@@ -21,7 +21,6 @@ package org.apache.fineract.portfolio.savings.domain;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -55,15 +54,9 @@ public interface SavingsAccountTransactionRepository
     List<SavingsAccountTransaction> findBySavingsAccountIdAndLessThanDateOfAndReversedIsFalse(@Param("savingsId") Long savingsId,
             @Param("transactionDate") LocalDate transactionDate, Pageable pageable);
 
-    // V2 Enhancement - Find transaction by ID and savings account ID (returns Optional)
-    @Query("select sat from SavingsAccountTransaction sat where sat.id = :transactionId and sat.savingsAccount.id = :savingsId")
-    Optional<SavingsAccountTransaction> findOneByIdAndSavingsAccountIdOptional(@Param("transactionId") Long transactionId,
-            @Param("savingsId") Long savingsId);
+    @Query("select sat from SavingsAccountTransaction sat where sat.savingsAccount.id = :savingsId and sat.reversed = false and sat.reversalTransaction = false order by sat.dateOf desc, sat.createdDate desc, sat.id desc")
+    List<SavingsAccountTransaction> findLastNonReversedTransactions(@Param("savingsId") Long savingsId, Pageable pageable);
 
-    /**
-     * Find active withdrawal for a release transaction
-     */
-    @Query("SELECT t.id FROM SavingsAccountTransaction t "
-            + "WHERE t.relatedTransactionId = :releaseId AND t.typeOf = 2 AND t.reversed = false")
-    Optional<Long> findActiveWithdrawalForRelease(@Param("releaseId") Long releaseId);
+    @Query("select sat.dateOf from SavingsAccountTransaction sat where sat.savingsAccount.id = :savingsId order by sat.dateOf desc, sat.createdDate desc, sat.id desc")
+    List<LocalDate> findLastTransactionDate(@Param("savingsId") Long savingsId, Pageable pageable);
 }

@@ -60,8 +60,10 @@ import org.apache.fineract.portfolio.savings.SavingsApiConstants;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountSubStatusEnum;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransaction;
+import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransactionRepository;
 import org.apache.fineract.portfolio.savings.exception.TransactionBeforePivotDateNotAllowed;
 import org.apache.fineract.useradministration.domain.AppUser;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -76,6 +78,7 @@ public class SavingsAccountTransactionDataValidator {
             Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
                     transactionAmountParamName, paymentTypeIdParamName, SavingsApiConstants.noteParamName, preAuthParamName));
     private final ConfigurationDomainService configurationDomainService;
+    private final SavingsAccountTransactionRepository savingsAccountTransactionRepository;
 
     public void validateTransactionWithPivotDate(final LocalDate transactionDate, final SavingsAccount savingsAccount) {
         final boolean backdatedTxnsAllowedTill = this.configurationDomainService.retrievePivotDateConfig();
@@ -282,13 +285,7 @@ public class SavingsAccountTransactionDataValidator {
                 }
             }
         }
-        LocalDate lastTransactionDate = null;
-
-        if (!backdatedTxnsAllowedTill) {
-            lastTransactionDate = account.retrieveLastTransactionDate();
-        } else {
-            lastTransactionDate = account.retrieveLastTransactionDateWithPivotConfig();
-        }
+        LocalDate lastTransactionDate = retrieveLastTransactionDate(account, backdatedTxnsAllowedTill);
 
         // compare two dates now
         if (DateUtils.isBefore(transactionDate, lastTransactionDate)) {
@@ -297,6 +294,14 @@ public class SavingsAccountTransactionDataValidator {
         }
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
+    }
+
+    private LocalDate retrieveLastTransactionDate(final SavingsAccount account, final boolean backdatedTxnsAllowedTill) {
+        if (backdatedTxnsAllowedTill) {
+            return account.retrieveLastTransactionDateWithPivotConfig();
+        }
+        return this.savingsAccountTransactionRepository.findLastTransactionDate(account.getId(), PageRequest.of(0, 1)).stream().findFirst()
+                .orElse(null);
     }
 
     public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction,

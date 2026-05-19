@@ -127,12 +127,34 @@ public class FineractProperties {
         private int minPoolSize;
         private int maxPoolSize;
 
+        // Per-tenant HikariCP connection pool settings
+        private long connectionTimeout = -1;
+        private long idleTimeout = -1;
+        private long maxLifetime = -1;
+        private long leakDetectionThreshold = -1;
+
         public boolean isMinPoolSizeSet() {
             return minPoolSize != -1;
         }
 
         public boolean isMaxPoolSizeSet() {
             return maxPoolSize != -1;
+        }
+
+        public boolean isConnectionTimeoutSet() {
+            return connectionTimeout != -1;
+        }
+
+        public boolean isIdleTimeoutSet() {
+            return idleTimeout != -1;
+        }
+
+        public boolean isMaxLifetimeSet() {
+            return maxLifetime != -1;
+        }
+
+        public boolean isLeakDetectionThresholdSet() {
+            return leakDetectionThreshold != -1;
         }
     }
 

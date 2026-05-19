@@ -283,7 +283,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
 
-        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
 
         if (account.getGsim() != null) {
             isGsim = true;
@@ -362,7 +362,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
 
-        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
 
         if (account.getGsim() != null) {
             isGsim = true;
@@ -1749,7 +1749,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final AppUser submittedBy = this.context.authenticatedUser();
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
-        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
         final LocalDate transactionDate = command.localDateValueOfParameterNamed(transactionDateParamName);
         final boolean lienAllowed = command.booleanPrimitiveValueOfParameterNamed(lienAllowedParamName);
         final boolean preAuth = command.booleanPrimitiveValueOfParameterNamed(SavingsApiConstants.preAuthParamName);
@@ -1779,24 +1779,10 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         account.getAccountBalance();
         this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(transaction.getTransactionDate(), account);
 
-        final Set<Long> existingTransactionIds = new HashSet<>();
-        final Set<Long> existingReversedTransactionIds = new HashSet<>();
-        if (backdatedTxnsAllowedTill) {
-            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
-            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
-        } else {
-            existingTransactionIds.addAll(account.findExistingTransactionIds());
-            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
-        }
-
         // Save transaction first to get ID
         this.savingsAccountTransactionRepository.saveAndFlush(transaction);
 
-        account.addTransaction(transaction);
-
-        // Post journal entries (includes HOLD GL posting)
-        this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
-                backdatedTxnsAllowedTill);
+        // HOLD journal posting is skipped for this endpoint; avoid loading the full transaction collection.
 
         this.savingsAccountTransactionRepository.save(transaction);
 
@@ -1821,7 +1807,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         context.authenticatedUser();
 
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
-        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
         checkClientOrGroupActive(account);
 
         SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
@@ -1860,8 +1846,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         // V1: NO withdrawal transaction created, NO journal entries posted
         // Funds are simply released back to available balance
         // Client can call withdraw endpoint separately if needed
-
-        account.addTransaction(releaseTxn);
 
         if (backdatedTxnsAllowedTill) {
             this.savingsAccountTransactionRepository.saveAll(account.getSavingsAccountTransactionsWithPivotConfig());

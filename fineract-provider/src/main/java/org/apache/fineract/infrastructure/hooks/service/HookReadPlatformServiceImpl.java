@@ -40,6 +40,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -73,6 +74,7 @@ public class HookReadPlatformServiceImpl implements HookReadPlatformService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "hooks", key = "T(org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil).getTenant().getTenantIdentifier().concat('HK')")
     public List<Hook> retrieveHooksByEvent(final String entityName, final String actionName) {
         return hookRepository.findAllHooksListeningToEvent(entityName, actionName);

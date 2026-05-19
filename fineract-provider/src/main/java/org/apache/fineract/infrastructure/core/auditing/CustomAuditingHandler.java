@@ -21,7 +21,6 @@ package org.apache.fineract.infrastructure.core.auditing;
 import org.apache.fineract.infrastructure.core.domain.AbstractAuditableWithUTCDateTimeCustom;
 import org.springframework.data.auditing.AuditableBeanWrapper;
 import org.springframework.data.auditing.AuditingHandler;
-import org.springframework.data.auditing.DateTimeProvider;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.mapping.PersistentEntity;
 import org.springframework.data.mapping.PersistentProperty;
@@ -31,6 +30,9 @@ import org.springframework.lang.NonNull;
 import org.springframework.util.Assert;
 
 public class CustomAuditingHandler extends AuditingHandler {
+
+    private final AuditingHandler utcHandler;
+    private final AuditingHandler instanceHandler;
 
     /**
      * Creates a new {@link AuditableBeanWrapper} using the given {@link PersistentEntities} when looking up auditing
@@ -42,6 +44,8 @@ public class CustomAuditingHandler extends AuditingHandler {
      */
     public CustomAuditingHandler(PersistentEntities entities) {
         super(entities);
+        this.utcHandler = createHandler(entities, CustomDateTimeProvider.UTC);
+        this.instanceHandler = createHandler(entities, CustomDateTimeProvider.INSTANCE);
     }
 
     /**
@@ -57,14 +61,18 @@ public class CustomAuditingHandler extends AuditingHandler {
             AuditorAware<?> auditorAware) {
         this(PersistentEntities.of(mappingContext));
         setAuditorAware(auditorAware);
+        utcHandler.setAuditorAware(auditorAware);
+        instanceHandler.setAuditorAware(auditorAware);
     }
 
-    private DateTimeProvider fetchDateTimeProvider(Object bean) {
-        if (bean instanceof AbstractAuditableWithUTCDateTimeCustom) {
-            return CustomDateTimeProvider.UTC;
-        } else {
-            return CustomDateTimeProvider.INSTANCE;
-        }
+    private static AuditingHandler createHandler(PersistentEntities entities, org.springframework.data.auditing.DateTimeProvider provider) {
+        AuditingHandler handler = new AuditingHandler(entities);
+        handler.setDateTimeProvider(provider);
+        return handler;
+    }
+
+    private AuditingHandler getHandler(Object bean) {
+        return bean instanceof AbstractAuditableWithUTCDateTimeCustom ? utcHandler : instanceHandler;
     }
 
     /**
@@ -76,8 +84,7 @@ public class CustomAuditingHandler extends AuditingHandler {
     @Override
     public <T> T markCreated(@NonNull T source) {
         Assert.notNull(source, "Source entity must not be null");
-        setDateTimeProvider(fetchDateTimeProvider(source));
-        return super.markCreated(source);
+        return getHandler(source).markCreated(source);
     }
 
     /**
@@ -89,7 +96,6 @@ public class CustomAuditingHandler extends AuditingHandler {
     @Override
     public <T> T markModified(@NonNull T source) {
         Assert.notNull(source, "Source entity must not be null");
-        setDateTimeProvider(fetchDateTimeProvider(source));
-        return super.markModified(source);
+        return getHandler(source).markModified(source);
     }
 }

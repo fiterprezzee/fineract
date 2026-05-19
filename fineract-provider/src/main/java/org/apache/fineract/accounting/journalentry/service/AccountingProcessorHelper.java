@@ -256,14 +256,9 @@ public class AccountingProcessorHelper {
                         PortfolioAccountType.SAVINGS);
             }
 
-            // Hold & Release Enhancement: Extract hold-related fields
-            final Boolean isFromHoldReleaseObj = (Boolean) map.get("isFromHoldRelease");
-            final boolean isFromHoldRelease = isFromHoldReleaseObj != null && isFromHoldReleaseObj;
-            final Long holdTransactionId = (Long) map.get("holdTransactionId");
-
             final SavingsTransactionDTO transaction = new SavingsTransactionDTO(transactionOfficeId, paymentTypeId, transactionId,
                     transactionDate, transactionType, amount, reversed, feePayments, penaltyPayments, overdraftAmount, isAccountTransfer,
-                    taxPayments, isFromHoldRelease, holdTransactionId);
+                    taxPayments);
 
             newSavingsTransactions.add(transaction);
 

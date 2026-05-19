@@ -292,6 +292,42 @@ public class SavingsAccountTransactionDataValidator {
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
     }
 
+    public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction,
+            final JsonCommand command) {
+        final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+        final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
+                .resource(SAVINGS_ACCOUNT_RESOURCE_NAME);
+
+        if (holdTransaction == null) {
+            baseDataValidator.failWithCode("validation.msg.validation.errors.exist", "Transaction not found");
+        } else if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
+            baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
+                    .failWithCode("validation.msg.amount.is.not.on.hold", "Transaction amount is not on hold");
+        }
+
+        if (holdTransaction != null) {
+            boolean isActive = holdTransaction.getSavingsAccount().isActive();
+            if (!isActive) {
+                baseDataValidator.reset().parameter(SavingsApiConstants.statusParamName)
+                        .failWithCodeNoParameterAddedToErrorCode(SavingsApiConstants.ERROR_MSG_SAVINGS_ACCOUNT_NOT_ACTIVE);
+            }
+        }
+
+        throwExceptionIfValidationWarningsExist(dataValidationErrors);
+
+        // Extract transactionDate from command, default to business date if not provided
+        LocalDate transactionDate = DateUtils.getBusinessLocalDate();
+        if (command != null && command.parsedJson() != null) {
+            final JsonElement element = command.parsedJson();
+            if (this.fromApiJsonHelper.parameterExists(transactionDateParamName, element)) {
+                transactionDate = this.fromApiJsonHelper.extractLocalDateNamed(transactionDateParamName, element);
+            }
+        }
+
+        SavingsAccountTransaction transaction = SavingsAccountTransaction.releaseAmount(holdTransaction, transactionDate);
+        return transaction;
+    }
+
     public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction) {
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)

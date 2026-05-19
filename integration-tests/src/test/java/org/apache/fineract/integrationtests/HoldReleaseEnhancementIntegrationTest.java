@@ -51,13 +51,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Integration tests for Hold & Release Enhancement feature.
  *
- * Tests the following scenarios from the design document: - TS-01: Full Hold → Release - TS-02: Partial Release -
- * TS-03: Concurrent Release (rejection on over-release) - TS-04: Idempotent Retry (same result on duplicate requests) -
- * TS-06: Multiple Holds Same Account
- *
- * Verifies: - Transaction linkage (holdTransactionId, relatedTransactionId) - GL postings (HOLD: DR Savings Control, CR
- * Funds on Hold; WITHDRAWAL: DR Funds on Hold, CR Savings Control + DR Savings Control, CR Savings Reference) - Balance
- * changes (account balance reduced after release) - Proper creation of RELEASE and WITHDRAWAL transactions
+ * Tests the following scenarios: - V1 Release: Release only (no withdrawal, no journal entries) - V2 Release: Combined
+ * release + withdraw in single transaction (creates journal entries) - Transaction linkage (holdTransactionId,
+ * relatedTransactionId) - Balance changes verification - Multiple holds on same account - Over-release prevention
  */
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @ExtendWith({ SavingsTestLifecycleExtension.class })
@@ -108,22 +104,18 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     /**
-     * TS-01: Full Hold → Release
-     *
-     * Given: Account balance = 1000 When: Hold 200 Then: Release 200 Expect: - 3 transactions (HOLD, RELEASE,
-     * WITHDRAWAL) - GL balanced (Funds on Hold = 0) - Account balance = 800
+     * Test V1 Release: Release only - no withdrawal created, no journal entries. After V1 release, funds return to
+     * available balance but account balance unchanged.
      */
     @Test
-    public void testFullHoldAndRelease() {
+    public void testV1ReleaseOnly() {
         // Create client and savings account
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
         assertNotNull(clientID);
 
-        // Create savings product with cash-based accounting
         final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
         assertNotNull(savingsProductId);
 
-        // Create and activate savings account
         final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
         assertNotNull(savingsId);
 
@@ -135,60 +127,40 @@ public class HoldReleaseEnhancementIntegrationTest {
 
         // Verify initial balance
         HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        Float initialBalance = (Float) summary.get("accountBalance");
-        assertEquals(1000f, initialBalance, 0.01, "Initial balance should be 1000");
+        assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01, "Initial balance should be 1000");
 
-        // Step 1: Create HOLD for 200
-        final String holdAmount = "200";
-        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, holdAmount, false,
+        // Create HOLD for 200
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false,
                 SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
         assertNotNull(holdTransactionId, "Hold transaction should be created");
 
-        // Verify hold reduces available balance but not account balance
+        // Verify after hold: Account=1000, Available=800
         summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        Float accountBalanceAfterHold = (Float) summary.get("accountBalance");
-        Float availableBalanceAfterHold = (Float) summary.get("availableBalance");
-        assertEquals(1000f, accountBalanceAfterHold, 0.01, "Account balance should remain 1000 after hold");
-        assertEquals(800f, availableBalanceAfterHold, 0.01, "Available balance should be 800 after hold");
+        assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01, "Account balance should remain 1000 after hold");
+        assertEquals(800f, (Float) summary.get("availableBalance"), 0.01, "Available balance should be 800 after hold");
 
-        // Step 2: Release the hold
-        HashMap releaseResponse = this.savingsAccountHelper.releaseAmountWithFullResponse(savingsId, holdTransactionId);
-        assertNotNull(releaseResponse, "Release response should not be null");
-
-        Integer releaseTransactionId = (Integer) releaseResponse.get("resourceId");
+        // V1 Release - release only, no withdrawal
+        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
         assertNotNull(releaseTransactionId, "Release transaction ID should be returned");
 
-        // Verify withdrawal transaction was also created (from the response changes)
-        HashMap changes = (HashMap) releaseResponse.get("changes");
-        if (changes != null) {
-            Integer withdrawalTransactionId = (Integer) changes.get("withdrawalTransactionId");
-            assertNotNull(withdrawalTransactionId, "Withdrawal transaction ID should be in response");
-
-            // Verify the withdrawal is linked to the hold
-            HashMap withdrawalTxn = this.savingsAccountHelper.getSavingsTransaction(savingsId, withdrawalTransactionId);
-            assertNotNull(withdrawalTxn, "Withdrawal transaction should exist");
-        }
-
-        // Step 3: Verify final balances
+        // After V1 release: Account=1000, Available=1000 (funds returned to available)
         summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
         Float finalAccountBalance = (Float) summary.get("accountBalance");
         Float finalAvailableBalance = (Float) summary.get("availableBalance");
 
-        // After release+withdrawal: Account=800, Hold=0, Available=800
-        assertEquals(800f, finalAccountBalance, 0.01, "Account balance should be 800 after release");
-        assertEquals(800f, finalAvailableBalance, 0.01, "Available balance should be 800 after release");
+        // V1 release only releases hold - no withdrawal, so account balance unchanged
+        assertEquals(1000f, finalAccountBalance, 0.01, "V1 Release: Account balance should remain 1000 (no withdrawal)");
+        assertEquals(1000f, finalAvailableBalance, 0.01, "V1 Release: Available balance should return to 1000");
 
-        LOG.info("TS-01: Full Hold → Release PASSED");
+        LOG.info("Test V1 Release Only PASSED");
     }
 
     /**
-     * TS-02: Partial Release
-     *
-     * Given: Account balance = 1000 When: Hold 500 Then: Release 200 Expect: - Hold remains = 300 - GL clears only 200
-     * - Account balance = 800 - Available = 500
+     * Test V2 Release: Combined release + withdraw in single transaction. After V2 release, account balance is reduced
+     * by the held amount.
      */
     @Test
-    public void testPartialRelease() {
+    public void testV2ReleaseWithWithdrawal() {
         // Create client and savings account
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
         assertNotNull(clientID);
@@ -197,56 +169,114 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertNotNull(savingsProductId);
 
         final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+        assertNotNull(savingsId);
+
         this.savingsAccountHelper.approveSavings(savingsId);
         this.savingsAccountHelper.activateSavings(savingsId);
 
-        // Hold 500
-        final String holdAmount = "500";
-        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, holdAmount, false,
-                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        assertNotNull(holdTransactionId);
+        // Verify initial balance
+        HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01, "Initial balance should be 1000");
 
-        // Verify after hold: Account=1000, Hold=500, Available=500
+        // Create HOLD for 200
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId, "Hold transaction should be created");
+
+        // Verify after hold: Account=1000, Available=800
+        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01);
+        assertEquals(800f, (Float) summary.get("availableBalance"), 0.01);
+
+        // V2 Release - combined release + withdraw
+        HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransactionId);
+        assertNotNull(v2Response, "V2 Release response should not be null");
+
+        Integer withdrawalTransactionId = (Integer) v2Response.get("resourceId");
+        assertNotNull(withdrawalTransactionId, "Withdrawal transaction ID should be returned");
+
+        // Verify transaction IDs are linked in changes
+        HashMap changes = (HashMap) v2Response.get("changes");
+        if (changes != null) {
+            Integer linkedHoldId = (Integer) changes.get("holdTransactionId");
+            Integer linkedReleaseId = (Integer) changes.get("releaseTransactionId");
+            LOG.info("V2 Response - Hold ID: {}, Release ID: {}, Withdrawal ID: {}", linkedHoldId, linkedReleaseId,
+                    withdrawalTransactionId);
+        }
+
+        // After V2 release: Account=800, Available=800 (funds withdrawn)
+        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        Float finalAccountBalance = (Float) summary.get("accountBalance");
+        Float finalAvailableBalance = (Float) summary.get("availableBalance");
+
+        assertEquals(800f, finalAccountBalance, 0.01, "V2 Release: Account balance should be 800 after release+withdraw");
+        assertEquals(800f, finalAvailableBalance, 0.01, "V2 Release: Available balance should be 800");
+
+        LOG.info("Test V2 Release With Withdrawal PASSED");
+    }
+
+    /**
+     * Test that V1 and V2 releases can coexist - clients can switch between versions.
+     */
+    @Test
+    public void testV1AndV2Coexistence() {
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        // Create two holds
+        Integer holdTransaction1Id = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        Integer holdTransaction2Id = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "300", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+
+        // Verify: Account=1000, Available=500 (500 held)
         HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
         assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01);
         assertEquals(500f, (Float) summary.get("availableBalance"), 0.01);
 
-        // Partial release of 200 (need custom release with amount)
-        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
-        assertNotNull(releaseTransactionId);
+        // Use V1 for first hold (release only)
+        Integer releaseTransaction1Id = this.savingsAccountHelper.releaseAmount(savingsId, holdTransaction1Id);
+        assertNotNull(releaseTransaction1Id);
 
-        // Note: Current implementation releases full amount.
-        // Partial release would need additional API support.
-        // For now, verify the release completed successfully.
+        // After V1 release: Account=1000, Available=700 (only 300 still held)
+        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01, "After V1 release, account balance unchanged");
+        assertEquals(700f, (Float) summary.get("availableBalance"), 0.01, "After V1 release, available increased by 200");
 
-        LOG.info("TS-02: Partial Release test completed");
+        // Use V2 for second hold (release + withdraw)
+        HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransaction2Id);
+        assertNotNull(v2Response);
+
+        // After V2 release: Account=700, Available=700
+        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        assertEquals(700f, (Float) summary.get("accountBalance"), 0.01, "After V2 release, account reduced by 300");
+        assertEquals(700f, (Float) summary.get("availableBalance"), 0.01, "After V2 release, available equals account");
+
+        LOG.info("Test V1 and V2 Coexistence PASSED");
     }
 
     /**
-     * TS-03: Concurrent Release Prevention
-     *
-     * Given: Hold = 500 When: Two release requests for 300 each simultaneously Expect: - One success (300 released) -
-     * One failure (InsufficientHoldAmountException) - No over-release
+     * Test over-release rejection - cannot release an already released hold.
      */
     @Test
     public void testOverReleaseRejection() {
-        // Create client and savings account
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
-        assertNotNull(clientID);
-
         final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
-        assertNotNull(savingsProductId);
-
         final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
         this.savingsAccountHelper.approveSavings(savingsId);
         this.savingsAccountHelper.activateSavings(savingsId);
 
-        // Hold amount
+        // Create hold
         Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "500", false,
                 SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
         assertNotNull(holdTransactionId);
 
-        // Release once
+        // Release once (V1)
         Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
         assertNotNull(releaseTransactionId);
 
@@ -257,65 +287,53 @@ public class HoldReleaseEnhancementIntegrationTest {
         ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountWithError(savingsId, holdTransactionId);
         assertNotNull(error, "Should return error for already released hold");
 
-        LOG.info("TS-03: Concurrent Release Prevention PASSED");
+        LOG.info("Test Over-Release Rejection PASSED");
     }
 
     /**
-     * TS-06: Multiple Holds Same Account
-     *
-     * Given: Account balance = 1000 When: Hold #1 = 200, Hold #2 = 300 Then: Release Hold #1 Expect: - Hold #2
-     * unaffected (300 still held) - Account balance = 800 - Available = 500
+     * Test multiple holds on same account - releasing one doesn't affect others.
      */
     @Test
     public void testMultipleHoldsSameAccount() {
-        // Create client and savings account
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
-        assertNotNull(clientID);
-
         final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
-        assertNotNull(savingsProductId);
-
         final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
         this.savingsAccountHelper.approveSavings(savingsId);
         this.savingsAccountHelper.activateSavings(savingsId);
 
         // Create Hold #1 for 200
         Integer holdTransaction1Id = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false,
                 SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        assertNotNull(holdTransaction1Id);
 
         // Create Hold #2 for 300
         Integer holdTransaction2Id = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "300", false,
                 SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        assertNotNull(holdTransaction2Id);
 
-        // Verify: Account=1000, Hold=500, Available=500
+        // Verify: Account=1000, Available=500
         HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
         assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01);
         assertEquals(500f, (Float) summary.get("availableBalance"), 0.01);
 
-        // Release Hold #1 only
-        Integer releaseTransaction1Id = this.savingsAccountHelper.releaseAmount(savingsId, holdTransaction1Id);
-        assertNotNull(releaseTransaction1Id);
+        // V2 Release Hold #1 only (200)
+        HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransaction1Id);
+        assertNotNull(v2Response);
 
         // Verify: Account=800, Hold=300, Available=500
         summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        Float accountBalance = (Float) summary.get("accountBalance");
-        Float availableBalance = (Float) summary.get("availableBalance");
+        assertEquals(800f, (Float) summary.get("accountBalance"), 0.01, "Account balance reduced by 200");
+        assertEquals(500f, (Float) summary.get("availableBalance"), 0.01, "300 still on hold from Hold #2");
 
-        assertEquals(800f, accountBalance, 0.01, "Account balance should be 800 after releasing Hold #1");
-        assertEquals(500f, availableBalance, 0.01, "Available balance should be 500 (300 still on hold)");
+        // V2 Release Hold #2 (300)
+        v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransaction2Id);
+        assertNotNull(v2Response);
 
-        // Release Hold #2
-        Integer releaseTransaction2Id = this.savingsAccountHelper.releaseAmount(savingsId, holdTransaction2Id);
-        assertNotNull(releaseTransaction2Id);
-
-        // Verify final: Account=500, Hold=0, Available=500
+        // Verify: Account=500, Hold=0, Available=500
         summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
         assertEquals(500f, (Float) summary.get("accountBalance"), 0.01);
         assertEquals(500f, (Float) summary.get("availableBalance"), 0.01);
 
-        LOG.info("TS-06: Multiple Holds Same Account PASSED");
+        LOG.info("Test Multiple Holds Same Account PASSED");
     }
 
     /**
@@ -338,8 +356,7 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertEquals(initialAccountBalance, initialAvailableBalance, "Initially, account and available balance should be equal");
 
         // Create hold
-        final String holdAmount = "300";
-        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, holdAmount, false,
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "300", false,
                 SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
         assertNotNull(holdTransactionId);
 
@@ -352,7 +369,7 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertEquals(initialAccountBalance, accountBalanceAfterHold, 0.01, "Account balance should not change after hold");
         assertEquals(initialAvailableBalance - 300f, availableBalanceAfterHold, 0.01, "Available balance should be reduced by hold amount");
 
-        LOG.info("Test: Hold Reduces Available Balance Only PASSED");
+        LOG.info("Test Hold Reduces Available Balance Only PASSED");
     }
 
     /**
@@ -383,14 +400,14 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertEquals("error.msg.savingsaccount.transaction.insufficient.account.balance",
                 error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
 
-        LOG.info("Test: Withdrawal Blocked By Hold PASSED");
+        LOG.info("Test Withdrawal Blocked By Hold PASSED");
     }
 
     /**
-     * Test release creates withdrawal transaction.
+     * Test V2 release creates both release and withdrawal transactions.
      */
     @Test
-    public void testReleaseCreatesWithdrawalTransaction() {
+    public void testV2ReleaseCreatesWithdrawalTransaction() {
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
         final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
         final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
@@ -406,9 +423,11 @@ public class HoldReleaseEnhancementIntegrationTest {
         Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false,
                 SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
 
-        // Release
-        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
-        assertNotNull(releaseTransactionId);
+        // V2 Release (creates release + withdrawal)
+        HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransactionId);
+        assertNotNull(v2Response);
+        Integer withdrawalTransactionId = (Integer) v2Response.get("resourceId");
+        assertNotNull(withdrawalTransactionId);
 
         // Count transactions after
         List<HashMap> transactionsAfter = (List<HashMap>) this.savingsAccountHelper.getSavingsDetails(savingsId, "transactions");
@@ -426,7 +445,6 @@ public class HoldReleaseEnhancementIntegrationTest {
                 Integer typeId = (Integer) transactionType.get("id");
                 if (typeId != null && typeId == 2) { // WITHDRAWAL
                     foundWithdrawal = true;
-                    // Verify amount matches hold amount
                     BigDecimal amount = new BigDecimal(txn.get("amount").toString());
                     assertEquals(200, amount.intValue(), "Withdrawal amount should match release amount");
                     break;
@@ -434,9 +452,9 @@ public class HoldReleaseEnhancementIntegrationTest {
             }
         }
 
-        assertTrue(foundWithdrawal, "Should find a WITHDRAWAL transaction after release");
+        assertTrue(foundWithdrawal, "Should find a WITHDRAWAL transaction after V2 release");
 
-        LOG.info("Test: Release Creates Withdrawal Transaction PASSED");
+        LOG.info("Test V2 Release Creates Withdrawal Transaction PASSED");
     }
 
     /**

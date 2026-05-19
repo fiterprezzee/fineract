@@ -96,6 +96,21 @@ public class DataSourcePerTenantServiceFactory {
         config.setConnectionTestQuery(hikariConfig.getConnectionTestQuery());
         config.setAutoCommit(hikariConfig.isAutoCommit());
 
+        // Per-tenant connection pool tuning
+        FineractProperties.FineractConfigProperties configOverride = fineractProperties.getTenant().getConfig();
+        if (configOverride.isConnectionTimeoutSet()) {
+            config.setConnectionTimeout(configOverride.getConnectionTimeout());
+        }
+        if (configOverride.isIdleTimeoutSet()) {
+            config.setIdleTimeout(configOverride.getIdleTimeout());
+        }
+        if (configOverride.isMaxLifetimeSet()) {
+            config.setMaxLifetime(configOverride.getMaxLifetime());
+        }
+        if (configOverride.isLeakDetectionThresholdSet()) {
+            config.setLeakDetectionThreshold(configOverride.getLeakDetectionThreshold());
+        }
+
         // https://github.com/brettwooldridge/HikariCP/wiki/MBean-(JMX)-Monitoring-and-Management
         config.setRegisterMbeans(true);
         meterRegistry.ifPresent(registry -> config

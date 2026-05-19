@@ -339,6 +339,20 @@ public class SavingsAccountAssembler {
         return account;
     }
 
+    /**
+     * Loads account WITHOUT transactions or charges. The domain service will load collections on-demand if the full
+     * recalculation path is needed. When backdatedTxnsAllowedTill is true, falls back to the existing full assembly
+     * because pivot-date transaction loading is always required and cannot be deferred.
+     */
+    public SavingsAccount assembleForOperation(final Long savingsId, final boolean backdatedTxnsAllowedTill) {
+        if (backdatedTxnsAllowedTill) {
+            return assembleFrom(savingsId, true);
+        }
+        final SavingsAccount account = this.savingsAccountRepository.findOneWithNotFoundDetectionWithoutLazyCollections(savingsId);
+        account.setHelpers(this.savingsAccountTransactionSummaryWrapper, this.savingsHelper);
+        return account;
+    }
+
     public SavingsAccount assembleFrom(final Long savingsId, final boolean backdatedTxnsAllowedTill) {
         SavingsAccount account = this.savingsAccountRepository.findSavingsWithNotFoundDetection(savingsId, backdatedTxnsAllowedTill);
         return loadTransactionsToSavingsAccount(account, backdatedTxnsAllowedTill);

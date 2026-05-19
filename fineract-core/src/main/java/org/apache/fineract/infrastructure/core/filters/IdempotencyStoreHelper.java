@@ -19,39 +19,24 @@
 package org.apache.fineract.infrastructure.core.filters;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.commands.domain.CommandSourceRepository;
-import org.apache.fineract.commands.service.CommandSourceService;
 import org.apache.fineract.commands.service.SynchronousCommandProcessingService;
 import org.apache.fineract.infrastructure.core.domain.FineractRequestContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
 public class IdempotencyStoreHelper {
 
     private final CommandSourceRepository commandSourceRepository;
-    private final CommandSourceService commandSourceService;
     private final FineractRequestContextHolder fineractRequestContextHolder;
 
-    public void storeCommandResult(Integer response, String body, Long commandId) {
-        commandSourceRepository.findById(commandId).ifPresent(commandSource -> {
-            commandSource.setResultStatusCode(response);
-            commandSource.setResult(body);
-            commandSourceService.saveResultSameTransaction(commandSource);
-        });
-    }
-
-    public boolean isAllowedContentTypeResponse(HttpServletResponse response) {
-        return Optional.ofNullable(response.getContentType()).map(String::toLowerCase).map(ct -> ct.contains("application/json"))
-                .orElse(false) || (response.getStatus() > 200 && response.getStatus() < 300);
-    }
-
-    public boolean isAllowedContentTypeRequest(HttpServletRequest request) {
-        return Optional.ofNullable(request.getContentType()).map(String::toLowerCase).map(ct -> ct.contains("application/json"))
-                .orElse(false);
+    @Transactional
+    public void updateResultStatusCode(Integer statusCode, Long commandId) {
+        commandSourceRepository.updateResultStatusCodeById(commandId, statusCode);
     }
 
     public boolean isStoreIdempotencyKey(HttpServletRequest request) {

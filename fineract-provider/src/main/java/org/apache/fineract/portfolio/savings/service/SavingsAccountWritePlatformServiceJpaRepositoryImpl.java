@@ -1909,6 +1909,17 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         holdTransaction.updateReason(null);
 
+        // Capture existing transaction IDs BEFORE creating new transactions for GL posting
+        final Set<Long> existingTransactionIds = new HashSet<>();
+        final Set<Long> existingReversedTransactionIds = new HashSet<>();
+        if (backdatedTxnsAllowedTill) {
+            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
+            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
+        } else {
+            existingTransactionIds.addAll(account.findExistingTransactionIds());
+            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
+        }
+
         final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
                 .validateReleaseAmountAndAssembleForm(holdTransaction, command);
 
@@ -1948,17 +1959,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         // Add transactions to account
         account.addTransaction(releaseTxn);
         account.addTransaction(withdrawalTxn);
-
-        // Capture existing transaction IDs for GL posting
-        final Set<Long> existingTransactionIds = new HashSet<>();
-        final Set<Long> existingReversedTransactionIds = new HashSet<>();
-        if (backdatedTxnsAllowedTill) {
-            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
-            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
-        } else {
-            existingTransactionIds.addAll(account.findExistingTransactionIds());
-            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
-        }
 
         // Post journal entries for the withdrawal transaction
         this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,

@@ -21,83 +21,141 @@
 -->
 <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
 
     <!--
         Hold & Release V2 Cleanup Migration
 
-        This migration cleans up unused columns from the initial implementation
-        and keeps only the required related_transaction_id column.
+        This migration removes unused columns, indexes, and constraints
+        from the initial implementation and keeps only the
+        related_transaction_id linkage.
 
-        Simplified schema:
-        - related_transaction_id: Links withdrawal to its originating release transaction
-        - Existing hold -> release linkage uses release_id_of_hold_amount (unchanged)
+        Existing hold-release linkage using release_id_of_hold_amount
+        remains unchanged.
     -->
 
-    <!-- Drop unused indexes first -->
-    <changeSet author="fineract" id="1">
-        <preConditions onFail="MARK_RAN">
-            <indexExists indexName="idx_savings_txn_hold_id"/>
+    <!-- ========================================================= -->
+    <!-- Drop obsolete indexes                                     -->
+    <!-- ========================================================= -->
+
+    <changeSet author="fineract" id="1-drop-idx-savings-txn-hold-id">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <indexExists indexName="idx_savings_txn_hold_id"
+                         tableName="m_savings_account_transaction"/>
         </preConditions>
-        <dropIndex tableName="m_savings_account_transaction" indexName="idx_savings_txn_hold_id"/>
+
+        <dropIndex tableName="m_savings_account_transaction"
+                   indexName="idx_savings_txn_hold_id"/>
     </changeSet>
 
-    <changeSet author="fineract" id="2">
-        <preConditions onFail="MARK_RAN">
-            <indexExists indexName="idx_savings_txn_hold_release"/>
+    <changeSet author="fineract" id="2-drop-idx-savings-txn-hold-release">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <indexExists indexName="idx_savings_txn_hold_release"
+                         tableName="m_savings_account_transaction"/>
         </preConditions>
-        <dropIndex tableName="m_savings_account_transaction" indexName="idx_savings_txn_hold_release"/>
+
+        <dropIndex tableName="m_savings_account_transaction"
+                   indexName="idx_savings_txn_hold_release"/>
     </changeSet>
 
-    <!-- Drop unused foreign key -->
-    <changeSet author="fineract" id="3">
-        <preConditions onFail="MARK_RAN">
+    <!-- ========================================================= -->
+    <!-- Drop obsolete foreign key                                 -->
+    <!-- ========================================================= -->
+
+    <changeSet author="fineract" id="3-drop-fk-savings-txn-hold">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
             <foreignKeyConstraintExists foreignKeyName="fk_savings_txn_hold"/>
         </preConditions>
-        <dropForeignKeyConstraint baseTableName="m_savings_account_transaction" constraintName="fk_savings_txn_hold"/>
+
+        <dropForeignKeyConstraint
+                baseTableName="m_savings_account_transaction"
+                constraintName="fk_savings_txn_hold"/>
     </changeSet>
 
-    <!-- Drop unused columns -->
-    <changeSet author="fineract" id="4">
-        <preConditions onFail="MARK_RAN">
-            <columnExists tableName="m_savings_account_transaction" columnName="hold_transaction_id"/>
+    <!-- ========================================================= -->
+    <!-- Drop obsolete columns                                     -->
+    <!-- ========================================================= -->
+
+    <changeSet author="fineract" id="4-drop-hold-transaction-id">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <columnExists tableName="m_savings_account_transaction"
+                          columnName="hold_transaction_id"/>
         </preConditions>
-        <dropColumn tableName="m_savings_account_transaction" columnName="hold_transaction_id"/>
+
+        <dropColumn tableName="m_savings_account_transaction"
+                    columnName="hold_transaction_id"/>
     </changeSet>
 
-    <changeSet author="fineract" id="5">
-        <preConditions onFail="MARK_RAN">
-            <columnExists tableName="m_savings_account_transaction" columnName="transaction_sub_type"/>
+    <changeSet author="fineract" id="5-drop-transaction-sub-type">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <columnExists tableName="m_savings_account_transaction"
+                          columnName="transaction_sub_type"/>
         </preConditions>
-        <dropColumn tableName="m_savings_account_transaction" columnName="transaction_sub_type"/>
+
+        <dropColumn tableName="m_savings_account_transaction"
+                    columnName="transaction_sub_type"/>
     </changeSet>
 
-    <changeSet author="fineract" id="6">
-        <preConditions onFail="MARK_RAN">
-            <columnExists tableName="m_savings_account_transaction" columnName="is_from_hold_release"/>
+    <changeSet author="fineract" id="6-drop-is-from-hold-release">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <columnExists tableName="m_savings_account_transaction"
+                          columnName="is_from_hold_release"/>
         </preConditions>
-        <dropColumn tableName="m_savings_account_transaction" columnName="is_from_hold_release"/>
+
+        <dropColumn tableName="m_savings_account_transaction"
+                    columnName="is_from_hold_release"/>
     </changeSet>
 
-    <changeSet author="fineract" id="7">
-        <preConditions onFail="MARK_RAN">
-            <columnExists tableName="m_savings_account_transaction" columnName="remaining_hold_amount"/>
+    <changeSet author="fineract" id="7-drop-remaining-hold-amount">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <columnExists tableName="m_savings_account_transaction"
+                          columnName="remaining_hold_amount"/>
         </preConditions>
-        <dropColumn tableName="m_savings_account_transaction" columnName="remaining_hold_amount"/>
+
+        <dropColumn tableName="m_savings_account_transaction"
+                    columnName="remaining_hold_amount"/>
     </changeSet>
 
-    <changeSet author="fineract" id="8">
-        <preConditions onFail="MARK_RAN">
-            <columnExists tableName="m_savings_account_transaction" columnName="operation_type"/>
+    <changeSet author="fineract" id="8-drop-operation-type">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <columnExists tableName="m_savings_account_transaction"
+                          columnName="operation_type"/>
         </preConditions>
-        <dropColumn tableName="m_savings_account_transaction" columnName="operation_type"/>
+
+        <dropColumn tableName="m_savings_account_transaction"
+                    columnName="operation_type"/>
     </changeSet>
 
-    <changeSet author="fineract" id="9">
-        <preConditions onFail="MARK_RAN">
-            <columnExists tableName="m_savings_account_transaction" columnName="originating_channel"/>
+    <changeSet author="fineract" id="9-drop-originating-channel">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <columnExists tableName="m_savings_account_transaction"
+                          columnName="originating_channel"/>
         </preConditions>
-        <dropColumn tableName="m_savings_account_transaction" columnName="originating_channel"/>
+
+        <dropColumn tableName="m_savings_account_transaction"
+                    columnName="originating_channel"/>
+    </changeSet>
+
+    <!-- ========================================================= -->
+    <!-- Ensure related_transaction_id support                     -->
+    <!-- ========================================================= -->
+
+    <changeSet author="fineract" id="10-create-related-transaction-index">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <columnExists tableName="m_savings_account_transaction"
+                          columnName="related_transaction_id"/>
+
+            <not>
+                <indexExists indexName="idx_savings_txn_related_transaction"
+                             tableName="m_savings_account_transaction"/>
+            </not>
+        </preConditions>
+
+        <createIndex tableName="m_savings_account_transaction"
+                     indexName="idx_savings_txn_related_transaction">
+            <column name="related_transaction_id"/>
+        </createIndex>
     </changeSet>
 
 </databaseChangeLog>

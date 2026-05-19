@@ -36,6 +36,20 @@
     -->
 
     <!-- ========================================================= -->
+    <!-- Drop obsolete foreign key                                 -->
+    <!-- ========================================================= -->
+
+    <changeSet author="fineract" id="3-drop-fk-savings-txn-hold">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fk_savings_txn_hold"/>
+        </preConditions>
+
+        <dropForeignKeyConstraint
+                baseTableName="m_savings_account_transaction"
+                constraintName="fk_savings_txn_hold"/>
+    </changeSet>
+
+    <!-- ========================================================= -->
     <!-- Drop obsolete indexes                                     -->
     <!-- ========================================================= -->
 
@@ -57,20 +71,6 @@
 
         <dropIndex tableName="m_savings_account_transaction"
                    indexName="idx_savings_txn_hold_release"/>
-    </changeSet>
-
-    <!-- ========================================================= -->
-    <!-- Drop obsolete foreign key                                 -->
-    <!-- ========================================================= -->
-
-    <changeSet author="fineract" id="3-drop-fk-savings-txn-hold">
-        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
-            <foreignKeyConstraintExists foreignKeyName="fk_savings_txn_hold"/>
-        </preConditions>
-
-        <dropForeignKeyConstraint
-                baseTableName="m_savings_account_transaction"
-                constraintName="fk_savings_txn_hold"/>
     </changeSet>
 
     <!-- ========================================================= -->

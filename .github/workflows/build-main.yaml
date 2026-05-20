@@ -64,17 +64,19 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build image (Jib)
-        env:
-          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
         run: |
           ./gradlew --no-daemon --console=plain \
             :fineract-provider:clean \
             :fineract-provider:build \
-            :fineract-provider:jib \
-            -Djib.from.platforms=linux/amd64 \
-            -Djib.to.image=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} \
-            -Djib.to.tags=$IMAGE_TAG \
+            :fineract-provider:jibDockerBuild \
             -x test -x cucumber -x spotlessCheck -x rat -x checkstyleMain
+
+      - name: Push immutable commit tag
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        run: |
+          docker tag fineract:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
 
       - name: Summary
         env:

@@ -71,7 +71,7 @@ jobs:
             :fineract-provider:clean \
             :fineract-provider:build \
             :fineract-provider:jib \
-            -Djib.from.platforms=linux/arm64 \
+            -Djib.from.platforms=linux/amd64 \
             -Djib.to.image=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} \
             -Djib.to.tags=$IMAGE_TAG \
             -x test -x cucumber -x spotlessCheck -x rat -x checkstyleMain

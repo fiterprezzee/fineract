@@ -25,7 +25,10 @@ dependencyManagement {
         mavenBom 'com.squareup.okhttp3:okhttp-bom:4.12.0'
         mavenBom 'org.slf4j:slf4j-bom:2.0.17'
         mavenBom 'io.micrometer:micrometer-bom:1.13.6'
-        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.13'
+        // 3.5.14 brings spring-framework 6.2.18, spring-security 6.5.10,
+        // thymeleaf 3.1.5.RELEASE and spring-authorization-server 1.5.7 (Snyk CVE fixes)
+        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.14'
+        mavenBom 'io.netty:netty-bom:4.1.133.Final'
         mavenBom 'io.awspring.cloud:spring-cloud-aws-dependencies:3.2.1'
         mavenBom 'io.opentelemetry:opentelemetry-bom:1.44.1'
         mavenBom 'org.jetbrains.kotlin:kotlin-bom:2.1.0'
@@ -152,10 +155,10 @@ dependencyManagement {
         dependency "commons-codec:commons-codec:1.17.1"
         dependency "org.projectlombok:lombok:1.18.36"
 
-        dependency 'org.bouncycastle:bcpkix-jdk18on:1.80'
-        dependency 'org.bouncycastle:bcprov-jdk18on:1.80'
-        dependency 'org.bouncycastle:bcutil-jdk18on:1.80'
-        dependency 'org.bouncycastle:bcpg-jdk18on:1.80'
+        dependency 'org.bouncycastle:bcpkix-jdk18on:1.84'
+        dependency 'org.bouncycastle:bcprov-jdk18on:1.84'
+        dependency 'org.bouncycastle:bcutil-jdk18on:1.84'
+        dependency 'org.bouncycastle:bcpg-jdk18on:1.84'
 
         dependency 'org.eclipse.jgit:org.eclipse.jgit:7.2.0.202503040940-r'
         dependency 'org.eclipse.jgit:org.eclipse.jgit.gpg.bc:7.2.0.202503040940-r'
@@ -207,7 +210,6 @@ dependencyManagement {
             exclude 'pull-parser:pull-parser'
         }
 
-        dependency 'org.owasp.esapi:esapi:2.7.0.0'
         dependency 'org.awaitility:awaitility:4.2.2'
 
         dependencySet(group: 'org.apache.poi', version: '5.4.1') {
@@ -233,7 +235,7 @@ dependencyManagement {
             exclude 'org.slf4j:jcl-over-slf4j'
             exclude 'org.slf4j:slf4j-api'
         }
-        dependency 'org.postgresql:postgresql:42.7.8'
+        dependency 'org.postgresql:postgresql:42.7.11'
 
         dependency 'com.mysql:mysql-connector-j:9.3.0'
 
@@ -273,16 +275,21 @@ dependencyManagement {
         dependency 'org.apache.commons:commons-lang3:3.18.0'
         dependency 'com.nimbusds:nimbus-jose-jwt:10.0.2'
 
-        dependency 'org.springframework:spring-core:6.2.17'
-        dependency 'org.springframework.security:spring-security-core:6.5.9'
-        dependency 'io.netty:netty-codec:4.1.132.Final'
-        dependency 'io.netty:netty-codec-http:4.1.132.Final'
-        // Force tomcat version: CVE-2025-XXXXX (Improper Authentication + Encoding)
-        dependency 'org.apache.tomcat.embed:tomcat-embed-core:10.1.54'
-        dependency 'org.apache.tomcat.embed:tomcat-embed-el:10.1.54'
-        dependency 'org.apache.tomcat.embed:tomcat-embed-websocket:10.1.54'
-        // Force log4j-core version: transitive via spotbugs — multiple CVEs
-        dependency 'org.apache.logging.log4j:log4j-core:2.25.3'
+        dependency 'org.springframework:spring-core:6.2.18'
+        dependency 'org.springframework.security:spring-security-core:6.5.10'
+        dependency 'org.springframework.security:spring-security-oauth2-jose:6.5.10'
+        dependency 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
+        dependency 'org.jetbrains.kotlin:kotlin-stdlib-common:2.1.0'
+        dependency 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0'
+        dependency 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
+        dependency 'io.netty:netty-codec:4.1.133.Final'
+        dependency 'io.netty:netty-codec-http:4.1.133.Final'
+        dependency 'io.netty:netty-codec-http2:4.1.133.Final'
+        dependency 'io.netty:netty-handler-proxy:4.1.133.Final'
+        // Force tomcat version: Snyk fixes for embedded Tomcat 10.1.x CVEs
+        dependency 'org.apache.tomcat.embed:tomcat-embed-core:10.1.55'
+        dependency 'org.apache.tomcat.embed:tomcat-embed-el:10.1.55'
+        dependency 'org.apache.tomcat.embed:tomcat-embed-websocket:10.1.55'
         // Force rhino version: transitive via mockserver — XXE + resource allocation CVEs
         dependency 'org.mozilla:rhino:1.7.15.1'
         // Force jruby versions: transitive via spring-restdocs/asciidoctorj — cert + memory CVEs

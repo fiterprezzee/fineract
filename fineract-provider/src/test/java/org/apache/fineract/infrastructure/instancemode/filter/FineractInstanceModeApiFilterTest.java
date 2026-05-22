@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.instancemode.filter;
 
+import static jakarta.servlet.http.HttpServletResponse.SC_METHOD_NOT_ALLOWED;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -30,7 +31,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.instancemode.InstanceModeMock;
-import org.apache.hc.core5.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -120,7 +120,7 @@ class FineractInstanceModeApiFilterTest {
         underTest.doFilterInternal(request, response, filterChain);
         // then
         verifyNoInteractions(filterChain);
-        verify(response).setStatus(HttpStatus.SC_METHOD_NOT_ALLOWED);
+        verify(response).setStatus(SC_METHOD_NOT_ALLOWED);
     }
 
     @Test
@@ -134,7 +134,7 @@ class FineractInstanceModeApiFilterTest {
         underTest.doFilterInternal(request, response, filterChain);
         // then
         verifyNoInteractions(filterChain);
-        verify(response).setStatus(HttpStatus.SC_METHOD_NOT_ALLOWED);
+        verify(response).setStatus(SC_METHOD_NOT_ALLOWED);
     }
 
     @Test
@@ -201,7 +201,7 @@ class FineractInstanceModeApiFilterTest {
         underTest.doFilterInternal(request, response, filterChain);
         // then
         verifyNoInteractions(filterChain);
-        verify(response).setStatus(HttpStatus.SC_METHOD_NOT_ALLOWED);
+        verify(response).setStatus(SC_METHOD_NOT_ALLOWED);
     }
 
     @Test
@@ -309,7 +309,7 @@ class FineractInstanceModeApiFilterTest {
         underTest.doFilterInternal(request, response, filterChain);
         // then
         verifyNoInteractions(filterChain);
-        verify(response).setStatus(HttpStatus.SC_METHOD_NOT_ALLOWED);
+        verify(response).setStatus(SC_METHOD_NOT_ALLOWED);
     }
 
     @Test
@@ -338,7 +338,7 @@ class FineractInstanceModeApiFilterTest {
         underTest.doFilterInternal(request, response, filterChain);
         // then
         verifyNoInteractions(filterChain);
-        verify(response).setStatus(HttpStatus.SC_METHOD_NOT_ALLOWED);
+        verify(response).setStatus(SC_METHOD_NOT_ALLOWED);
     }
 
     @Test
@@ -393,6 +393,6 @@ class FineractInstanceModeApiFilterTest {
         underTest.doFilterInternal(request, response, filterChain);
         // then
         verifyNoInteractions(filterChain);
-        verify(response).setStatus(HttpStatus.SC_METHOD_NOT_ALLOWED);
+        verify(response).setStatus(SC_METHOD_NOT_ALLOWED);
     }
 }

@@ -176,16 +176,6 @@ dependencies {
         exclude group: 'com.sun.activation'
     }
 
-    implementation('org.owasp.esapi:esapi') {
-        exclude group: 'org.slf4j'
-        exclude group: 'log4j'
-        exclude group: 'commons-logging'
-        exclude group: 'commons-collections'
-        exclude group: 'commons-lang'
-        exclude group: 'spotbugs-annotations'
-        exclude group: 'xml-apis'
-    }
-
     runtimeOnly('org.glassfish.jaxb:jaxb-runtime') {
         exclude group: 'com.sun.activation'
     }
@@ -206,6 +196,13 @@ dependencies {
     implementation 'org.codehaus.janino:janino'
 
     implementation 'org.apache.commons:commons-math3'
+
+    // iText 2.1.7 is required by Pentaho reporting for PDF generation
+    // Pentaho libs use com.lowagie.text.pdf.FontMapper from legacy iText
+    implementation('com.lowagie:itext:2.1.7') {
+        exclude group: 'bouncycastle'
+        exclude group: 'org.bouncycastle'
+    }
 
     implementation 'io.github.classgraph:classgraph'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'

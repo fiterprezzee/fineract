@@ -5,11 +5,15 @@
     "fields": [
         {
             "name": "loanId",
-            "type": ["long"]
+            "type": [
+                "long"
+            ]
         },
         {
             "name": "loanAccountNo",
-            "type": ["string"]
+            "type": [
+                "string"
+            ]
         },
         {
             "default": null,
@@ -29,7 +33,9 @@
         },
         {
             "name": "installment",
-            "type": ["org.apache.fineract.avro.loan.v1.RepaymentDueDataV1"]
+            "type": [
+                "org.apache.fineract.avro.loan.v1.RepaymentDueDataV1"
+            ]
         },
         {
             "default": null,

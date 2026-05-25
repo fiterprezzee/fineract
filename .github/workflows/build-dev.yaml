@@ -1,12 +1,12 @@
 name: Build dev image
 
 # Builds an immutable <sha>-dev image and auto-deploys to dev ECS.
-# Triggered on push to prezzee/dev, or manually (with optional commit SHA rebuild).
+# Triggered on pull request targeting prezzee/development, or manually.
 
 on:
-  push:
+  pull_request:
     branches:
-      - prezzee/develop
+      - prezzee/development
   workflow_dispatch:
     inputs:
       git_ref:
@@ -99,6 +99,6 @@ jobs:
         run: |
           gh workflow run deploy.yaml \
             --repo "$GITHUB_REPOSITORY" \
-            --ref "${{ github.ref_name }}" \
+            --ref "${{ github.base_ref || github.ref_name }}" \
             --field environment=dev \
             --field version="$IMAGE_TAG"

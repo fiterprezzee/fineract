@@ -75,6 +75,14 @@ jobs:
             sleep 1
           done
 
+      - name: Print runner resources
+        run: |
+          nproc
+          lscpu
+          free -h
+          df -h
+          java -XshowSettings:vm -version
+
       - name: Initialise databases
         run: |
           ./gradlew --no-daemon -q createPGDB -PdbName=fineract_tenants

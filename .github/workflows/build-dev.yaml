@@ -1,12 +1,12 @@
 name: Build dev image
 
 # Builds an immutable <sha>-dev image and auto-deploys to dev ECS.
-# Triggered on pull request targeting prezzee/development, or manually.
+# Triggered on pull request targeting prezzee/develop, or manually.
 
 on:
   pull_request:
     branches:
-      - prezzee/development
+      - prezzee/develop
   workflow_dispatch:
     inputs:
       git_ref:

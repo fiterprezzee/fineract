@@ -326,7 +326,7 @@ configurations {
 }
 
 dependencies {
-    ddAgent 'com.datadoghq:dd-java-agent:1.58.1'
+    ddAgent 'com.datadoghq:dd-java-agent:1.62.0'
 }
 
 tasks.register('copyDatadogAgent', Copy) {

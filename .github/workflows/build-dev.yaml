@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
         with:
           fetch-depth: 0
-          ref: ${{ inputs.git_ref || github.ref }}
+          ref: ${{ inputs.git_ref || github.event.pull_request.head.sha || github.ref }}
 
       - name: Resolve image tag
         id: meta

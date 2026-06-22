@@ -274,7 +274,10 @@ jib {
         ]
         ports = ['8080/tcp', '8443/tcp']
         labels = [maintainer: 'Aleksandar Vidakovic <aleks@apache.org>']
-        user = 'root'
+        // Run the image as a non-root, fixed high UID:GID (image-level hardening;
+        // k8s securityContext.runAsUser enforces the same at runtime). Ports are
+        // >1024 so no privileged bind is required.
+        user = '10001:10001'
     }
 
     extraDirectories {

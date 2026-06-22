@@ -25,12 +25,15 @@ dependencyManagement {
         mavenBom 'com.squareup.okhttp3:okhttp-bom:4.12.0'
         mavenBom 'org.slf4j:slf4j-bom:2.0.17'
         mavenBom 'io.micrometer:micrometer-bom:1.13.6'
-        // 3.5.14 brings spring-framework 6.2.18, spring-security 6.5.10,
-        // thymeleaf 3.1.5.RELEASE and spring-authorization-server 1.5.7 (Snyk CVE fixes)
-        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.14'
-        mavenBom 'io.netty:netty-bom:4.1.133.Final'
+        // 3.5.15 brings spring-framework 6.2.19, spring-security 6.5.11, spring-kafka 3.3.16,
+        // spring-data 3.5.12, spring-retry 2.0.13, micrometer 1.15.12, thymeleaf 3.1.5.RELEASE
+        // and spring-authorization-server 1.5.8 — clears criticals 3.5.14 left open
+        // (spring-jms 6.2.19, spring-kafka 3.3.16) plus several Snyk highs.
+        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.15'
+        // netty-handler critical (Incorrect Comparison) is fixed in 4.1.135.Final
+        mavenBom 'io.netty:netty-bom:4.1.135.Final'
         mavenBom 'io.awspring.cloud:spring-cloud-aws-dependencies:3.2.1'
-        mavenBom 'io.opentelemetry:opentelemetry-bom:1.44.1'
+        mavenBom 'io.opentelemetry:opentelemetry-bom:1.62.0'
         mavenBom 'org.jetbrains.kotlin:kotlin-bom:2.1.0'
         mavenBom 'org.junit:junit-bom:5.11.3'
         mavenBom 'com.fasterxml.jackson:jackson-bom:2.21.2'
@@ -275,17 +278,11 @@ dependencyManagement {
         dependency 'org.apache.commons:commons-lang3:3.18.0'
         dependency 'com.nimbusds:nimbus-jose-jwt:10.0.2'
 
-        dependency 'org.springframework:spring-core:6.2.18'
-        dependency 'org.springframework.security:spring-security-core:6.5.10'
-        dependency 'org.springframework.security:spring-security-oauth2-jose:6.5.10'
         dependency 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
         dependency 'org.jetbrains.kotlin:kotlin-stdlib-common:2.1.0'
         dependency 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0'
         dependency 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
-        dependency 'io.netty:netty-codec:4.1.133.Final'
-        dependency 'io.netty:netty-codec-http:4.1.133.Final'
-        dependency 'io.netty:netty-codec-http2:4.1.133.Final'
-        dependency 'io.netty:netty-handler-proxy:4.1.133.Final'
+        // netty-codec* force-pins removed — netty-bom 4.1.135.Final (above) covers all netty modules uniformly.
         // Force tomcat version: Snyk fixes for embedded Tomcat 10.1.x CVEs
         dependency 'org.apache.tomcat.embed:tomcat-embed-core:10.1.55'
         dependency 'org.apache.tomcat.embed:tomcat-embed-el:10.1.55'

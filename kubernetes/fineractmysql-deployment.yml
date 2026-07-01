@@ -85,9 +85,22 @@ spec:
         app: fineract-server
         tier: fineractmysql
     spec:
+      # MariaDB runs as uid/gid 999; fsGroup makes the data PVC writable.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - image: mariadb:11.4
           name: mysql
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               memory: "1Gi"

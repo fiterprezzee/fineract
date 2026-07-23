@@ -55,6 +55,7 @@ import org.apache.fineract.infrastructure.dataqueries.domain.ReportType;
 import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlInjectionPreventerService;
+import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.apache.fineract.infrastructure.security.utils.LogParameterEscapeUtil;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.openpdf.text.Document;
@@ -77,6 +78,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
     private final SqlInjectionPreventerService sqlInjectionPreventerService;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
     private final FineractProperties fineractProperties;
+    private final SqlValidator sqlValidator;
 
     @Override
     public StreamingOutput retrieveReportCSV(final String name, final String type, final Map<String, String> queryParams,
@@ -490,6 +492,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
         String sql = getSql(name, type);
 
         for (Map.Entry<String, String> entry : queryParams.entrySet()) {
+            sqlValidator.validate("adhoc", entry.getValue());
             sql = this.genericDataService.replace(sql, "${" + entry.getKey() + "}", entry.getValue());
         }
 

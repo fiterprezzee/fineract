@@ -787,7 +787,6 @@ public class SavingsAccountHelper {
         map.put("locale", CommonConstants.LOCALE);
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
         map.put("transactionDate", transactionDate);
-        map.put("paymentTypeId", "1");
         map.put("preAuth", false);
         return new Gson().toJson(map);
     }

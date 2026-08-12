@@ -756,6 +756,15 @@ public class SavingsAccountHelper {
         return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE), "");
     }
 
+    public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId,
+            final String transactionAmount) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (FULL RESPONSE) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount), "");
+    }
+
     /**
      * V2 Release: Try to release and expect error response.
      */
@@ -765,6 +774,14 @@ public class SavingsAccountHelper {
         final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
         return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE),
                 CommonConstants.RESPONSE_ERROR);
+    }
+
+    public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (EXPECT ERROR) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount), CommonConstants.RESPONSE_ERROR);
     }
 
     /**
@@ -783,11 +800,18 @@ public class SavingsAccountHelper {
     }
 
     private String getReleaseV2TransactionJSON(final String transactionDate) {
-        final HashMap<String, String> map = new HashMap<>();
+        return getReleaseV2TransactionJSON(transactionDate, null);
+    }
+
+    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount) {
+        final HashMap<String, Object> map = new HashMap<>();
         map.put("locale", CommonConstants.LOCALE);
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
         map.put("transactionDate", transactionDate);
         map.put("paymentTypeId", "1");
+        if (transactionAmount != null) {
+            map.put("transactionAmount", transactionAmount);
+        }
         return new Gson().toJson(map);
     }
 

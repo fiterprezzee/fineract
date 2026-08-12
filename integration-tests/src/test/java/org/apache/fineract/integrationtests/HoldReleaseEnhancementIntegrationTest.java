@@ -215,6 +215,50 @@ public class HoldReleaseEnhancementIntegrationTest {
         LOG.info("Test V2 Release With Withdrawal PASSED");
     }
 
+    @Test
+    public void testV2ReleaseRejectsStandardHoldAmountAboveHold() {
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId);
+
+        ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
+        SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+
+        ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransactionId, "220");
+        assertNotNull(error, "Standard hold should reject settlement amount above hold amount");
+        assertEquals("error.msg.savingsaccount.release.amount.must.equal.hold.amount",
+                error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+    }
+
+    @Test
+    public void testV2ReleaseRejectsStandardHoldAmountBelowHold() {
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId);
+
+        ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
+        SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+
+        ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransactionId, "180");
+        assertNotNull(error, "Standard hold should reject settlement amount below hold amount");
+        assertEquals("error.msg.savingsaccount.release.amount.must.equal.hold.amount",
+                error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+    }
+
     /**
      * Test that V1 and V2 releases can coexist - clients can switch between versions.
      */

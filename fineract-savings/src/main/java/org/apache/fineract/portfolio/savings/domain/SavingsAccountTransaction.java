@@ -343,10 +343,15 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
     }
 
     public static SavingsAccountTransaction releaseAmount(SavingsAccountTransaction accountTransaction, LocalDate transactionDate) {
+        return releaseAmount(accountTransaction, transactionDate,
+                Money.of(accountTransaction.savingsAccount.getCurrency(), accountTransaction.amount));
+    }
+
+    public static SavingsAccountTransaction releaseAmount(SavingsAccountTransaction accountTransaction, LocalDate transactionDate,
+            Money amount) {
         return new SavingsAccountTransaction(accountTransaction.savingsAccount, accountTransaction.office, accountTransaction.paymentDetail,
-                SavingsAccountTransactionType.AMOUNT_RELEASE.getValue(), transactionDate, accountTransaction.amount,
-                accountTransaction.reversed, accountTransaction.isManualTransaction, accountTransaction.lienTransaction,
-                accountTransaction.refNo);
+                SavingsAccountTransactionType.AMOUNT_RELEASE.getValue(), transactionDate, amount, accountTransaction.reversed,
+                accountTransaction.isManualTransaction, accountTransaction.lienTransaction, accountTransaction.refNo);
     }
 
     public static SavingsAccountTransaction reversal(SavingsAccountTransaction accountTransaction) {

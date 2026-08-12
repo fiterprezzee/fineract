@@ -54,6 +54,7 @@ import org.apache.fineract.infrastructure.core.exception.InvalidJsonException;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
+import org.apache.fineract.organisation.monetary.domain.Money;
 import org.apache.fineract.portfolio.savings.SavingsApiConstants;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountSubStatusEnum;
@@ -70,6 +71,9 @@ public class SavingsAccountTransactionDataValidator {
     private static final Set<String> SAVINGS_ACCOUNT_HOLD_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
                     transactionAmountParamName, lienAllowedParamName, SavingsApiConstants.reasonForBlockParamName));
+    private static final Set<String> SAVINGS_ACCOUNT_RELEASE_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
+            Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
+                    transactionAmountParamName, paymentTypeIdParamName, SavingsApiConstants.noteParamName, "preAuth"));
     private final ConfigurationDomainService configurationDomainService;
 
     public void validateTransactionWithPivotDate(final LocalDate transactionDate, final SavingsAccount savingsAccount) {
@@ -294,6 +298,12 @@ public class SavingsAccountTransactionDataValidator {
 
     public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction,
             final JsonCommand command) {
+        if (command != null && StringUtils.isNotBlank(command.json())) {
+            final Type typeOfMap = new TypeToken<Map<String, Object>>() {}.getType();
+            this.fromApiJsonHelper.checkForUnsupportedParameters(typeOfMap, command.json(),
+                    SAVINGS_ACCOUNT_RELEASE_AMOUNT_REQUEST_DATA_PARAMETERS);
+        }
+
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
                 .resource(SAVINGS_ACCOUNT_RESOURCE_NAME);
@@ -317,14 +327,22 @@ public class SavingsAccountTransactionDataValidator {
 
         // Extract transactionDate from command, default to business date if not provided
         LocalDate transactionDate = DateUtils.getBusinessLocalDate();
+        BigDecimal transactionAmount = holdTransaction == null ? null : holdTransaction.getAmount();
         if (command != null && command.parsedJson() != null) {
             final JsonElement element = command.parsedJson();
             if (this.fromApiJsonHelper.parameterExists(transactionDateParamName, element)) {
                 transactionDate = this.fromApiJsonHelper.extractLocalDateNamed(transactionDateParamName, element);
             }
+            if (this.fromApiJsonHelper.parameterExists(transactionAmountParamName, element)) {
+                transactionAmount = this.fromApiJsonHelper.extractBigDecimalWithLocaleNamed(transactionAmountParamName, element);
+                baseDataValidator.reset().parameter(transactionAmountParamName).value(transactionAmount).notNull().positiveAmount();
+            }
         }
 
-        SavingsAccountTransaction transaction = SavingsAccountTransaction.releaseAmount(holdTransaction, transactionDate);
+        throwExceptionIfValidationWarningsExist(dataValidationErrors);
+
+        SavingsAccountTransaction transaction = SavingsAccountTransaction.releaseAmount(holdTransaction, transactionDate,
+                Money.of(holdTransaction.getSavingsAccount().getCurrency(), transactionAmount));
         return transaction;
     }
 

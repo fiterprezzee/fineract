@@ -25,6 +25,7 @@ import static org.apache.fineract.portfolio.savings.SavingsApiConstants.checkNum
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.closedOnDateParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.lienAllowedParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.paymentTypeIdParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.preAuthParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.receiptNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.routingCodeParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionAccountNumberParamName;
@@ -69,7 +70,10 @@ public class SavingsAccountTransactionDataValidator {
     private final FromJsonHelper fromApiJsonHelper;
     private static final Set<String> SAVINGS_ACCOUNT_HOLD_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
-                    transactionAmountParamName, lienAllowedParamName, SavingsApiConstants.reasonForBlockParamName));
+                    transactionAmountParamName, lienAllowedParamName, SavingsApiConstants.reasonForBlockParamName, preAuthParamName));
+    private static final Set<String> SAVINGS_ACCOUNT_RELEASE_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
+            Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
+                    SavingsApiConstants.noteParamName, preAuthParamName));
     private final ConfigurationDomainService configurationDomainService;
 
     public void validateTransactionWithPivotDate(final LocalDate transactionDate, final SavingsAccount savingsAccount) {
@@ -225,6 +229,8 @@ public class SavingsAccountTransactionDataValidator {
         final BigDecimal amount = this.fromApiJsonHelper.extractBigDecimalWithLocaleNamed(transactionAmountParamName, element);
         baseDataValidator.reset().parameter(transactionAmountParamName).value(amount).notNull().positiveAmount();
         final LocalDate transactionDate = this.fromApiJsonHelper.extractLocalDateNamed(transactionDateParamName, element);
+        final Boolean preAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
+        baseDataValidator.reset().parameter(preAuthParamName).value(preAuth).ignoreIfNull().trueOrFalseRequired(preAuth);
 
         final String reasonForBlock = this.fromApiJsonHelper.extractStringNamed(SavingsApiConstants.reasonForBlockParamName, element);
         baseDataValidator.reset().parameter(SavingsApiConstants.reasonForBlockParamName).value(reasonForBlock).notBlank()
@@ -294,6 +300,12 @@ public class SavingsAccountTransactionDataValidator {
 
     public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction,
             final JsonCommand command) {
+        if (command != null && StringUtils.isNotBlank(command.json())) {
+            final Type typeOfMap = new TypeToken<Map<String, Object>>() {}.getType();
+            this.fromApiJsonHelper.checkForUnsupportedParameters(typeOfMap, command.json(),
+                    SAVINGS_ACCOUNT_RELEASE_AMOUNT_REQUEST_DATA_PARAMETERS);
+        }
+
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
                 .resource(SAVINGS_ACCOUNT_RESOURCE_NAME);
@@ -322,7 +334,17 @@ public class SavingsAccountTransactionDataValidator {
             if (this.fromApiJsonHelper.parameterExists(transactionDateParamName, element)) {
                 transactionDate = this.fromApiJsonHelper.extractLocalDateNamed(transactionDateParamName, element);
             }
+            final Boolean requestedPreAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
+            baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).notNull().trueOrFalseRequired(requestedPreAuth);
+
+            if (holdTransaction != null && requestedPreAuth != null && !requestedPreAuth.equals(holdTransaction.isPreAuth())) {
+                baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).failWithCode(
+                        "validation.msg.preauth.does.not.match.hold.transaction",
+                        "The preAuth parameter must match the original hold transaction");
+            }
         }
+
+        throwExceptionIfValidationWarningsExist(dataValidationErrors);
 
         SavingsAccountTransaction transaction = SavingsAccountTransaction.releaseAmount(holdTransaction, transactionDate);
         return transaction;

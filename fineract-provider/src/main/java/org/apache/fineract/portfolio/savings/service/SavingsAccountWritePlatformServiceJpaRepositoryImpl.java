@@ -1805,20 +1805,93 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         checkClientOrGroupActive(account);
 
+<<<<<<< HEAD
+=======
+        SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
+                .findOneByIdAndSavingsAccountId(savingsTransactionId, savingsId);
+        if (holdTransaction == null) {
+            throw new SavingsAccountTransactionNotFoundException(savingsId, savingsTransactionId);
+        }
+
+        // Validate hold is not already released
+        if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.hold.already.released", "Hold has already been released",
+                    savingsTransactionId);
+        }
+
+        holdTransaction.updateReason(null);
+
+        // Capture existing transaction IDs BEFORE creating new transactions for GL posting
+        final Set<Long> existingTransactionIds = new HashSet<>();
+        final Set<Long> existingReversedTransactionIds = new HashSet<>();
+        if (backdatedTxnsAllowedTill) {
+            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
+            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
+        } else {
+            existingTransactionIds.addAll(account.findExistingTransactionIds());
+            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
+        }
+
+        final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
+                .validateReleaseAmountAndAssembleForm(holdTransaction, command);
+
+        final BigDecimal holdAmount = holdTransaction.getAmount();
+        final BigDecimal settlementAmount = releaseTxn.getAmount();
+        final boolean preAuth = isPreAuthHold(holdTransaction);
+        validateV2ReleaseAmount(account, holdAmount, settlementAmount, preAuth);
+
+>>>>>>> a45bac8c1 (FTSP-73: Percentage-Based Overdraft Tracking & All-or-Nothing Settlement Rule)
         Money runningBalance = Money.of(account.getCurrency(), account.getAccountBalance());
 
         Money savingsOnHold = Money.of(account.getCurrency(), account.getSavingsHoldAmount());
+<<<<<<< HEAD
+=======
+        runningBalance = runningBalance.minus(savingsOnHold).plus(holdAmount);
+        releaseTxn.setRunningBalance(runningBalance);
+>>>>>>> a45bac8c1 (FTSP-73: Percentage-Based Overdraft Tracking & All-or-Nothing Settlement Rule)
 
         runningBalance = runningBalance.minus(savingsOnHold);
 
+<<<<<<< HEAD
         runningBalance = runningBalance.plus(transaction.getAmount());
         transaction.setRunningBalance(runningBalance);
+=======
+        // Release the hold
+        account.releaseOnHoldAmount(holdAmount);
+>>>>>>> a45bac8c1 (FTSP-73: Percentage-Based Overdraft Tracking & All-or-Nothing Settlement Rule)
 
         this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(transaction.getTransactionDate(), account);
         account.releaseOnHoldAmount(transaction.getAmount());
 
+<<<<<<< HEAD
         this.savingsAccountTransactionRepository.saveAndFlush(transaction);
         holdTransaction.updateReleaseId(transaction.getId());
+=======
+        // V2: Create WITHDRAWAL transaction linked to the release
+        UUID refNo = UUID.randomUUID();
+        SavingsAccountTransaction withdrawalTxn = SavingsAccountTransaction.withdrawal(account, account.office(), null,
+                releaseTxn.getTransactionDate(), Money.of(account.getCurrency(), settlementAmount), refNo.toString());
+
+        // Link withdrawal to release transaction
+        withdrawalTxn.setRelatedTransactionId(releaseTxn.getId());
+
+        // Set running balance for withdrawal (after deduction)
+        Money withdrawalRunningBalance = runningBalance.minus(settlementAmount);
+        withdrawalTxn.setRunningBalance(withdrawalRunningBalance);
+
+        // Deduct from account balance
+        account.getSummary().withdraw(settlementAmount);
+
+        this.savingsAccountTransactionRepository.saveAndFlush(withdrawalTxn);
+
+        // Add transactions to account
+        account.addTransaction(releaseTxn);
+        account.addTransaction(withdrawalTxn);
+
+        // Post journal entries for the withdrawal transaction
+        this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
+                backdatedTxnsAllowedTill);
+>>>>>>> a45bac8c1 (FTSP-73: Percentage-Based Overdraft Tracking & All-or-Nothing Settlement Rule)
 
         if (backdatedTxnsAllowedTill) {
             this.savingsAccountTransactionRepository.saveAll(account.getSavingsAccountTransactionsWithPivotConfig());
@@ -1828,8 +1901,74 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         this.savingAccountRepositoryWrapper.save(account);
 
+<<<<<<< HEAD
         return new CommandProcessingResultBuilder().withEntityId(transaction.getId()).withOfficeId(account.officeId())
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).build();
+=======
+        // Build response with all linked transaction IDs
+        Map<String, Object> changes = new HashMap<>();
+        changes.put("releaseTransactionId", releaseTxn.getId());
+        changes.put("withdrawalTransactionId", withdrawalTxn.getId());
+        changes.put("holdTransactionId", holdTransaction.getId());
+        changes.put("holdAmount", holdAmount);
+        changes.put("settlementAmount", settlementAmount);
+
+        return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
+                .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
+>>>>>>> a45bac8c1 (FTSP-73: Percentage-Based Overdraft Tracking & All-or-Nothing Settlement Rule)
+    }
+
+    private boolean isPreAuthHold(final SavingsAccountTransaction holdTransaction) {
+        try {
+            return Boolean.TRUE.equals(holdTransaction.getClass().getMethod("isPreAuth").invoke(holdTransaction));
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    }
+
+    private void validateV2ReleaseAmount(final SavingsAccount account, final BigDecimal holdAmount, final BigDecimal settlementAmount,
+            final boolean preAuth) {
+        if (settlementAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.must.be.positive",
+                    "Release amount must be greater than zero");
+        }
+
+        final int amountComparison = settlementAmount.compareTo(holdAmount);
+        if (!preAuth && amountComparison != 0) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.must.equal.hold.amount",
+                    "Release amount must equal hold amount for a standard hold");
+        }
+
+        final BigDecimal excessAmount = settlementAmount.subtract(holdAmount);
+        if (preAuth && excessAmount.compareTo(BigDecimal.ZERO) > 0) {
+            final BigDecimal configuredPercentage = BigDecimal
+                    .valueOf(this.configurationDomainService.retrievePreAuthReleaseAllowedPercentage());
+            final BigDecimal allowedExcessAmount = holdAmount.multiply(configuredPercentage).divide(BigDecimal.valueOf(100),
+                    MathContext.DECIMAL64);
+            if (excessAmount.compareTo(allowedExcessAmount) > 0) {
+                throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.exceeds.allowed.preauth.percentage",
+                        "Release amount exceeds the configured preAuth allowed percentage");
+            }
+        }
+
+        final BigDecimal withdrawableAfterHoldRelease = account.getWithdrawableBalance().add(holdAmount);
+        final BigDecimal shortage = settlementAmount.subtract(withdrawableAfterHoldRelease);
+        if (shortage.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        if (!preAuth || excessAmount.compareTo(BigDecimal.ZERO) <= 0 || shortage.compareTo(excessAmount) > 0 || !account.allowOverdraft()) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.insufficient.funds.for.release",
+                    "Insufficient funds for release amount");
+        }
+
+        final BigDecimal overdraftLimit = account.getOverdraftLimit() == null ? BigDecimal.ZERO : account.getOverdraftLimit();
+        final BigDecimal finalBalance = account.getAccountBalance().subtract(settlementAmount);
+        final BigDecimal overdraftRequired = finalBalance.signum() < 0 ? finalBalance.abs() : BigDecimal.ZERO;
+        if (overdraftRequired.compareTo(overdraftLimit) > 0) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.insufficient.overdraft.limit.for.release",
+                    "Insufficient overdraft limit for release amount");
+        }
     }
 
     @Transactional

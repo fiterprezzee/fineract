@@ -710,6 +710,116 @@ public class SavingsAccountHelper {
                 getSavingsTransactionJSON("1000", LAST_TRANSACTION_DATE), CommonConstants.RESPONSE_RESOURCE_ID);
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Release hold amount and return full response including withdrawal transaction ID.
+     */
+    @Deprecated(forRemoval = true)
+    public HashMap releaseAmountWithFullResponse(final Integer savingsId, final Integer transactionId) {
+        LOG.info("\n--------------------------------- SAVINGS TRANSACTION RELEASE AMOUNT (FULL RESPONSE)--------------------------------");
+        final String url = createAdjustTransactionURL(RELEASE_AMOUNT_SAVINGS_COMMAND, savingsId, transactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getSavingsTransactionJSON("1000", LAST_TRANSACTION_DATE),
+                "");
+    }
+
+    /**
+     * Try to release hold amount and expect error response.
+     */
+    @Deprecated(forRemoval = true)
+    public Object releaseAmountWithError(final Integer savingsId, final Integer transactionId) {
+        LOG.info("\n--------------------------------- SAVINGS TRANSACTION RELEASE AMOUNT (EXPECT ERROR)--------------------------------");
+        return performSavingActions(createAdjustTransactionURL(RELEASE_AMOUNT_SAVINGS_COMMAND, savingsId, transactionId),
+                getSavingsTransactionJSON("1000", LAST_TRANSACTION_DATE), CommonConstants.RESPONSE_ERROR);
+    }
+
+    // ===================== V2 Release Methods =====================
+
+    private static final String SAVINGS_ACCOUNT_URL_V2 = "/fineract-provider/api/v2/savingsaccounts";
+
+    /**
+     * V2 Release: Performs release + withdraw in a single atomic transaction. Returns the withdrawal transaction ID
+     * (resourceId).
+     */
+    public Integer releaseAmountV2(final Integer savingsId, final Integer holdTransactionId) {
+        LOG.info("\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return (Integer) Utils.performServerPost(this.requestSpec, this.responseSpec, url,
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE), CommonConstants.RESPONSE_RESOURCE_ID);
+    }
+
+    /**
+     * V2 Release: Performs release + withdraw and returns full response including all transaction IDs.
+     */
+    public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (FULL RESPONSE) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE), "");
+    }
+
+    public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId,
+            final String transactionAmount) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (FULL RESPONSE) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount), "");
+    }
+
+    /**
+     * V2 Release: Try to release and expect error response.
+     */
+    public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (EXPECT ERROR) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE),
+                CommonConstants.RESPONSE_ERROR);
+    }
+
+    public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (EXPECT ERROR) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount), CommonConstants.RESPONSE_ERROR);
+    }
+
+    /**
+     * V2 Release with custom date.
+     */
+    public HashMap releaseAmountV2WithDate(final Integer savingsId, final Integer holdTransactionId, final String transactionDate) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (CUSTOM DATE) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getReleaseV2TransactionJSON(transactionDate), "");
+    }
+
+    private String createV2ReleaseTransactionURL(final Integer savingsId, final Integer transactionId) {
+        return SAVINGS_ACCOUNT_URL_V2 + "/" + savingsId + "/transactions/" + transactionId + "?command=" + RELEASE_AMOUNT_SAVINGS_COMMAND
+                + "&" + Utils.TENANT_IDENTIFIER;
+    }
+
+    private String getReleaseV2TransactionJSON(final String transactionDate) {
+        return getReleaseV2TransactionJSON(transactionDate, null);
+    }
+
+    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount) {
+        final HashMap<String, Object> map = new HashMap<>();
+        map.put("locale", CommonConstants.LOCALE);
+        map.put("dateFormat", CommonConstants.DATE_FORMAT);
+        map.put("transactionDate", transactionDate);
+        map.put("paymentTypeId", "1");
+        if (transactionAmount != null) {
+            map.put("transactionAmount", transactionAmount);
+        }
+        return new Gson().toJson(map);
+    }
+
+    // ===================== End V2 Release Methods =====================
+
+>>>>>>> a45bac8c1 (FTSP-73: Percentage-Based Overdraft Tracking & All-or-Nothing Settlement Rule)
     // TODO: Rewrite to use fineract-client instead!
     // Example: org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper.disburseLoan(java.lang.Long,
     // org.apache.fineract.client.models.PostLoansLoanIdRequest)

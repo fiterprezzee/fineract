@@ -783,11 +783,12 @@ public class SavingsAccountHelper {
     }
 
     private String getReleaseV2TransactionJSON(final String transactionDate) {
-        final HashMap<String, String> map = new HashMap<>();
+        final HashMap<String, Object> map = new HashMap<>();
         map.put("locale", CommonConstants.LOCALE);
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
         map.put("transactionDate", transactionDate);
         map.put("paymentTypeId", "1");
+        map.put("preAuth",false);
         return new Gson().toJson(map);
     }
 

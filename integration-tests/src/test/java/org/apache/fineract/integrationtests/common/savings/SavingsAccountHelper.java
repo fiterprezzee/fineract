@@ -710,8 +710,6 @@ public class SavingsAccountHelper {
                 getSavingsTransactionJSON("1000", LAST_TRANSACTION_DATE), CommonConstants.RESPONSE_RESOURCE_ID);
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Release hold amount and return full response including withdrawal transaction ID.
      */
@@ -760,11 +758,16 @@ public class SavingsAccountHelper {
 
     public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId,
             final String transactionAmount) {
+        return releaseAmountV2WithFullResponse(savingsId, holdTransactionId, transactionAmount, false);
+    }
+
+    public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount,
+            final Boolean preAuth) {
         LOG.info(
                 "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (FULL RESPONSE) --------------------------------");
         final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
         return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
-                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount), "");
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, preAuth), "");
     }
 
     /**
@@ -779,11 +782,16 @@ public class SavingsAccountHelper {
     }
 
     public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount) {
+        return releaseAmountV2WithError(savingsId, holdTransactionId, transactionAmount, false);
+    }
+
+    public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount,
+            final Boolean preAuth) {
         LOG.info(
                 "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (EXPECT ERROR) --------------------------------");
         final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
         return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
-                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount), CommonConstants.RESPONSE_ERROR);
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, preAuth), CommonConstants.RESPONSE_ERROR);
     }
 
     /**
@@ -802,24 +810,27 @@ public class SavingsAccountHelper {
     }
 
     private String getReleaseV2TransactionJSON(final String transactionDate) {
-        return getReleaseV2TransactionJSON(transactionDate, null);
+        return getReleaseV2TransactionJSON(transactionDate, null, false);
     }
 
     private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount) {
+        return getReleaseV2TransactionJSON(transactionDate, transactionAmount, false);
+    }
+
+    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount, final Boolean preAuth) {
         final HashMap<String, Object> map = new HashMap<>();
         map.put("locale", CommonConstants.LOCALE);
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
         map.put("transactionDate", transactionDate);
-        map.put("paymentTypeId", "1");
         if (transactionAmount != null) {
             map.put("transactionAmount", transactionAmount);
         }
+        map.put("preAuth", preAuth);
         return new Gson().toJson(map);
     }
 
     // ===================== End V2 Release Methods =====================
 
->>>>>>> a45bac8c1 (FTSP-73: Percentage-Based Overdraft Tracking & All-or-Nothing Settlement Rule)
     // TODO: Rewrite to use fineract-client instead!
     // Example: org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper.disburseLoan(java.lang.Long,
     // org.apache.fineract.client.models.PostLoansLoanIdRequest)
@@ -938,8 +949,13 @@ public class SavingsAccountHelper {
     // org.apache.fineract.client.models.PostLoansLoanIdRequest)
     @Deprecated(forRemoval = true)
     private String getLienSavingsTransactionJSON(final String amount, final String transactionDate, final Boolean lienAllowed) {
+        return getLienSavingsTransactionJSON(amount, transactionDate, lienAllowed, false);
+    }
+
+    private String getLienSavingsTransactionJSON(final String amount, final String transactionDate, final Boolean lienAllowed,
+            final Boolean preAuth) {
         return SavingsTransactionData.builder().transactionDate(transactionDate).transactionAmount(amount).lienAllowed(lienAllowed)
-                .reasonForBlock("unUsualActivity").build().getJson();
+                .preAuth(preAuth).reasonForBlock("unUsualActivity").build().getJson();
     }
 
     // TODO: Rewrite to use fineract-client instead!

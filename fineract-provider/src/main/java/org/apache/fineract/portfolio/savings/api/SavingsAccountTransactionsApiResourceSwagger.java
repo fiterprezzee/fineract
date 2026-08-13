@@ -206,6 +206,8 @@ final class SavingsAccountTransactionsApiResourceSwagger {
         public String lienAllowed;
         @Schema(example = "String")
         public String reasonForBlock;
+        @Schema(description = "Optional hold flag. true identifies a pre-authorization hold; false or omitted identifies a normal hold.", example = "false")
+        public Boolean preAuth;
         @Schema(example = "1")
         public Integer paymentTypeId;
     }

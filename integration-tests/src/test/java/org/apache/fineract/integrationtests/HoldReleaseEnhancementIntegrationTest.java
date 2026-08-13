@@ -259,6 +259,41 @@ public class HoldReleaseEnhancementIntegrationTest {
                 error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
     }
 
+    @Test
+    public void testV2ReleaseAllowsPreAuthHoldAmountBelowHold() {
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false, true,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId);
+
+        HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        assertEquals(1000f, (Float) summary.get("accountBalance"), 0.01);
+        assertEquals(800f, (Float) summary.get("availableBalance"), 0.01);
+
+        HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransactionId, "180", true);
+        assertNotNull(v2Response, "V2 preAuth release response should not be null");
+
+        HashMap changes = (HashMap) v2Response.get("changes");
+        assertNotNull(changes, "V2 preAuth release should return linked transaction changes");
+        assertEquals(holdTransactionId, changes.get("holdTransactionId"));
+        assertNotNull(changes.get("releaseTransactionId"), "Release transaction ID should be returned");
+        assertNotNull(changes.get("withdrawalTransactionId"), "Withdrawal transaction ID should be returned");
+        assertEquals(true, changes.get("preAuth"));
+        assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("200")));
+        assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("180")));
+
+        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        assertEquals(820f, (Float) summary.get("accountBalance"), 0.01, "PreAuth V2 release should withdraw only the settlement amount");
+        assertEquals(820f, (Float) summary.get("availableBalance"), 0.01,
+                "PreAuth V2 release should clear the hold and leave available equal to account balance");
+    }
+
     /**
      * Test that V1 and V2 releases can coexist - clients can switch between versions.
      */

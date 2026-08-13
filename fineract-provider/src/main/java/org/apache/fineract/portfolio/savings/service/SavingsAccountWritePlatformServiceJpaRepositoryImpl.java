@@ -1752,6 +1752,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         final LocalDate transactionDate = command.localDateValueOfParameterNamed(transactionDateParamName);
         final boolean lienAllowed = command.booleanPrimitiveValueOfParameterNamed(lienAllowedParamName);
+        final boolean preAuth = command.booleanPrimitiveValueOfParameterNamed(SavingsApiConstants.preAuthParamName);
 
         checkClientOrGroupActive(account);
 
@@ -1767,6 +1768,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountTransactionDataValidator.validateHoldAndAssembleForm(command.json(), account, submittedBy,
                 backdatedTxnsAllowedTill);
         SavingsAccountTransaction transaction = this.savingsAccountDomainService.handleHold(account, amount, transactionDate, lienAllowed);
+        transaction.updatePreAuth(preAuth);
 
         account.holdAmount(amount);
         transaction.setRunningBalance(runningBalance);
@@ -1871,6 +1873,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         Map<String, Object> changes = new HashMap<>();
         changes.put("releaseTransactionId", releaseTxn.getId());
         changes.put("holdTransactionId", holdTransaction.getId());
+        changes.put("preAuth", holdTransaction.isPreAuth());
 
         return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
@@ -1922,10 +1925,11 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
                 .validateReleaseAmountAndAssembleForm(holdTransaction, command);
+        releaseTxn.updatePreAuth(holdTransaction.isPreAuth());
 
         final BigDecimal holdAmount = holdTransaction.getAmount();
         final BigDecimal settlementAmount = releaseTxn.getAmount();
-        final boolean preAuth = isPreAuthHold(holdTransaction);
+        final boolean preAuth = holdTransaction.isPreAuth();
         validateV2ReleaseAmount(account, holdAmount, settlementAmount, preAuth);
 
         Money runningBalance = Money.of(account.getCurrency(), account.getAccountBalance());
@@ -1980,17 +1984,10 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         changes.put("holdTransactionId", holdTransaction.getId());
         changes.put("holdAmount", holdAmount);
         changes.put("settlementAmount", settlementAmount);
+        changes.put("preAuth", holdTransaction.isPreAuth());
 
         return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
-    }
-
-    private boolean isPreAuthHold(final SavingsAccountTransaction holdTransaction) {
-        try {
-            return Boolean.TRUE.equals(holdTransaction.getClass().getMethod("isPreAuth").invoke(holdTransaction));
-        } catch (ReflectiveOperationException e) {
-            return false;
-        }
     }
 
     private void validateV2ReleaseAmount(final SavingsAccount account, final BigDecimal holdAmount, final BigDecimal settlementAmount,

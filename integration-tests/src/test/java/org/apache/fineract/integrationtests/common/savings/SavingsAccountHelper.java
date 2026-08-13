@@ -818,10 +818,6 @@ public class SavingsAccountHelper {
         return getReleaseV2TransactionJSON(transactionDate, null, false);
     }
 
-    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount) {
-        return getReleaseV2TransactionJSON(transactionDate, transactionAmount, false);
-    }
-
     private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount, final Boolean preAuth) {
         final HashMap<String, Object> map = new HashMap<>();
         map.put("locale", CommonConstants.LOCALE);
@@ -947,14 +943,6 @@ public class SavingsAccountHelper {
     @Deprecated(forRemoval = true)
     private String getSavingsTransactionJSON(final String amount, final String transactionDate, final boolean isBulk) {
         return SavingsTransactionData.builder().transactionDate(transactionDate).transactionAmount(amount).isBulk(isBulk).build().getJson();
-    }
-
-    // TODO: Rewrite to use fineract-client instead!
-    // Example: org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper.disburseLoan(java.lang.Long,
-    // org.apache.fineract.client.models.PostLoansLoanIdRequest)
-    @Deprecated(forRemoval = true)
-    private String getLienSavingsTransactionJSON(final String amount, final String transactionDate, final Boolean lienAllowed) {
-        return getLienSavingsTransactionJSON(amount, transactionDate, lienAllowed, false);
     }
 
     private String getLienSavingsTransactionJSON(final String amount, final String transactionDate, final Boolean lienAllowed,

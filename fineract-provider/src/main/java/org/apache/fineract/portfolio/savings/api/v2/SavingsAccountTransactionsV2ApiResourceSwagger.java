@@ -33,6 +33,8 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
         private String locale;
         private String dateFormat;
         private String transactionDate;
+        private String transactionAmount;
+        private Long paymentTypeId;
         private String note;
         private Boolean preAuth;
 
@@ -63,6 +65,24 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
 
         public void setTransactionDate(String transactionDate) {
             this.transactionDate = transactionDate;
+        }
+
+        @Schema(description = "Optional settlement amount. Defaults to the hold amount when omitted.", example = "105.00")
+        public String getTransactionAmount() {
+            return transactionAmount;
+        }
+
+        public void setTransactionAmount(String transactionAmount) {
+            this.transactionAmount = transactionAmount;
+        }
+
+        @Schema(example = "1")
+        public Long getPaymentTypeId() {
+            return paymentTypeId;
+        }
+
+        public void setPaymentTypeId(Long paymentTypeId) {
+            this.paymentTypeId = paymentTypeId;
         }
 
         @Schema(example = "Release and withdraw funds")
@@ -146,6 +166,8 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
         private Long holdTransactionId;
         private Long releaseTransactionId;
         private Long withdrawalTransactionId;
+        private String holdAmount;
+        private String settlementAmount;
         private Boolean preAuth;
 
         private ReleaseAmountV2Changes() {}
@@ -175,6 +197,24 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
 
         public void setWithdrawalTransactionId(Long withdrawalTransactionId) {
             this.withdrawalTransactionId = withdrawalTransactionId;
+        }
+
+        @Schema(example = "100.00")
+        public String getHoldAmount() {
+            return holdAmount;
+        }
+
+        public void setHoldAmount(String holdAmount) {
+            this.holdAmount = holdAmount;
+        }
+
+        @Schema(example = "105.00")
+        public String getSettlementAmount() {
+            return settlementAmount;
+        }
+
+        public void setSettlementAmount(String settlementAmount) {
+            this.settlementAmount = settlementAmount;
         }
 
         @Schema(description = "The pre-authorization flag from the original hold transaction.", example = "true")

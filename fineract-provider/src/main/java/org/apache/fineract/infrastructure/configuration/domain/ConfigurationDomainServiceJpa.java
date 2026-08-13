@@ -319,6 +319,16 @@ public class ConfigurationDomainServiceJpa implements ConfigurationDomainService
     }
 
     @Override
+    public Long retrievePreAuthReleaseAllowedPercentage() {
+        final GlobalConfigurationPropertyData property = getGlobalConfigurationPropertyData(
+                GlobalConfigurationConstants.PRE_AUTH_RELEASE_ALLOWED_PERCENTAGE);
+        if (property.isEnabled() && property.getValue() != null) {
+            return property.getValue();
+        }
+        return 0L;
+    }
+
+    @Override
     public void removeGlobalConfigurationPropertyDataFromCache(final String propertyName) {
         globalConfigurationRepository.removeFromCache(propertyName);
     }

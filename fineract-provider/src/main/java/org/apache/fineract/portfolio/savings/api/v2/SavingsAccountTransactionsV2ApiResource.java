@@ -96,10 +96,10 @@ public class SavingsAccountTransactionsV2ApiResource {
             + "Transaction Flow:\n" + "1. Release hold (no journal entry)\n"
             + "2. Create withdrawal transaction (journal entries posted here)\n\n" + "Response includes all linked transaction IDs:\n"
             + "- holdTransactionId: Original hold transaction\n" + "- releaseTransactionId: The release transaction created\n"
-            + "- withdrawalTransactionId: The withdrawal transaction created\n"
-            + "- preAuth: The pre-authorization flag from the original hold transaction\n\n"
-            + "preAuth is required in the request and must match the original hold transaction.\n\n" + "Example Request:\n"
-            + "POST /v2/savingsaccounts/{savingsId}/transactions/{transactionId}?command=releaseAmount\n\n"
+            + "- withdrawalTransactionId: The withdrawal transaction created\n\n"
+            + "transactionAmount is optional. When omitted, V2 settles the original hold amount. For pre-authorization holds, "
+            + "transactionAmount may be less than, equal to, or greater than the hold amount subject to global configuration.\n\n"
+            + "Example Request:\n" + "POST /v2/savingsaccounts/{savingsId}/transactions/{transactionId}?command=releaseAmount\n\n"
             + "Accepted command = releaseAmount")
     @RequestBody(required = false, content = @Content(schema = @Schema(implementation = SavingsAccountTransactionsV2ApiResourceSwagger.ReleaseAmountV2Request.class)))
     @ApiResponses({

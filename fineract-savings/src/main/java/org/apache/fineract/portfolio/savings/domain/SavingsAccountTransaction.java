@@ -350,10 +350,16 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
     }
 
     public static SavingsAccountTransaction releaseAmount(SavingsAccountTransaction accountTransaction, LocalDate transactionDate) {
+        return releaseAmount(accountTransaction, transactionDate,
+                Money.of(accountTransaction.savingsAccount.getCurrency(), accountTransaction.amount));
+    }
+
+    public static SavingsAccountTransaction releaseAmount(SavingsAccountTransaction accountTransaction, LocalDate transactionDate,
+            Money amount) {
         SavingsAccountTransaction transaction = new SavingsAccountTransaction(accountTransaction.savingsAccount, accountTransaction.office,
-                accountTransaction.paymentDetail, SavingsAccountTransactionType.AMOUNT_RELEASE.getValue(), transactionDate,
-                accountTransaction.amount, accountTransaction.reversed, accountTransaction.isManualTransaction,
-                accountTransaction.lienTransaction, accountTransaction.refNo);
+                accountTransaction.paymentDetail, SavingsAccountTransactionType.AMOUNT_RELEASE.getValue(), transactionDate, amount,
+                accountTransaction.reversed, accountTransaction.isManualTransaction, accountTransaction.lienTransaction,
+                accountTransaction.refNo);
         transaction.updatePreAuth(accountTransaction.preAuth);
         return transaction;
     }

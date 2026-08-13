@@ -21,15 +21,22 @@
 -->
 <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
 
-    <!-- CUSTOM CHANGESETS - KEPT SEPARATE FROM COMMUNITY CHANGESETS -->
-    <!-- This master file includes all custom database changes to avoid conflicts with community upgrades -->
-    <!-- When community versions are updated, custom changes remain isolated and can be easily merged -->
+    <changeSet author="fineract" id="1-add-savings-transaction-pre-auth">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <not>
+                <columnExists tableName="m_savings_account_transaction"
+                              columnName="is_pre_authorization"/>
+            </not>
+        </preConditions>
 
-    <include file="custom/0001_pentaho_reports_registration.xml" relativeToChangelogFile="true"/>
-    <include file="custom/0002_hold_release_enhancement.xml" relativeToChangelogFile="true"/>
-    <include file="custom/0003_hold_release_v2_cleanup.xml" relativeToChangelogFile="true"/>
-    <include file="custom/0004_hold_pre_authorization.xml" relativeToChangelogFile="true"/>
+        <addColumn tableName="m_savings_account_transaction">
+            <column name="is_pre_authorization" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
 
 </databaseChangeLog>

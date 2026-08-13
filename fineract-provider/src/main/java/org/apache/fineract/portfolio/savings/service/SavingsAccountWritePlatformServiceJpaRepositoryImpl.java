@@ -1752,6 +1752,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         final LocalDate transactionDate = command.localDateValueOfParameterNamed(transactionDateParamName);
         final boolean lienAllowed = command.booleanPrimitiveValueOfParameterNamed(lienAllowedParamName);
+        final boolean preAuth = command.booleanPrimitiveValueOfParameterNamed(SavingsApiConstants.preAuthParamName);
 
         checkClientOrGroupActive(account);
 
@@ -1767,6 +1768,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountTransactionDataValidator.validateHoldAndAssembleForm(command.json(), account, submittedBy,
                 backdatedTxnsAllowedTill);
         SavingsAccountTransaction transaction = this.savingsAccountDomainService.handleHold(account, amount, transactionDate, lienAllowed);
+        transaction.updatePreAuth(preAuth);
 
         account.holdAmount(amount);
         transaction.setRunningBalance(runningBalance);
@@ -1871,6 +1873,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         Map<String, Object> changes = new HashMap<>();
         changes.put("releaseTransactionId", releaseTxn.getId());
         changes.put("holdTransactionId", holdTransaction.getId());
+        changes.put("preAuth", holdTransaction.isPreAuth());
 
         return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
@@ -1922,6 +1925,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
                 .validateReleaseAmountAndAssembleForm(holdTransaction, command);
+        releaseTxn.updatePreAuth(holdTransaction.isPreAuth());
 
         BigDecimal releaseAmount = releaseTxn.getAmount();
 
@@ -1975,6 +1979,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         changes.put("releaseTransactionId", releaseTxn.getId());
         changes.put("withdrawalTransactionId", withdrawalTxn.getId());
         changes.put("holdTransactionId", holdTransaction.getId());
+        changes.put("preAuth", holdTransaction.isPreAuth());
 
         return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();

@@ -568,6 +568,13 @@ public class GlobalConfigurationHelper {
                 "ACTIVE,TRANSFER_IN_PROGRESS,TRANSFER_ON_HOLD,OVERPAID,CLOSED_OBLIGATIONS_MET");
         defaults.add(allowedLoanStatusesForDelayedSettlementExternalAssetTransfer);
 
+        HashMap<String, Object> preAuthReleaseAllowedPercentage = new HashMap<>();
+        preAuthReleaseAllowedPercentage.put("name", GlobalConfigurationConstants.PRE_AUTH_RELEASE_ALLOWED_PERCENTAGE);
+        preAuthReleaseAllowedPercentage.put("value", 0L);
+        preAuthReleaseAllowedPercentage.put("enabled", true);
+        preAuthReleaseAllowedPercentage.put("trapDoor", false);
+        defaults.add(preAuthReleaseAllowedPercentage);
+
         return defaults;
     }
 

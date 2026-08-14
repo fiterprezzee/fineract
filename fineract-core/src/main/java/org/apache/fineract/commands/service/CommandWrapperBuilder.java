@@ -3362,6 +3362,16 @@ public class CommandWrapperBuilder {
         return this;
     }
 
+    public CommandWrapperBuilder releaseAmountWithWithdrawal(final Long accountId, final Long transactionId) {
+        this.actionName = "RELEASEAMOUNTWITHWITHDRAWAL";
+        this.entityName = "SAVINGSACCOUNT";
+        this.entityId = null;
+        this.savingsId = accountId;
+        this.transactionId = transactionId.toString();
+        this.href = "/v2/savingsaccounts/" + accountId + "/transactions/" + transactionId + "?command=releaseAmount";
+        return this;
+    }
+
     public CommandWrapperBuilder blockDebitsFromSavingsAccount(final Long accountId) {
         this.actionName = "BLOCKDEBIT";
         this.entityName = "SAVINGSACCOUNT";

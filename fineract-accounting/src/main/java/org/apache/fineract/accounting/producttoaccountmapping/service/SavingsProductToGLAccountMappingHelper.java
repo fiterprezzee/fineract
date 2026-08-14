@@ -148,6 +148,8 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 element);
         final Long transfersInSuspenseAccountId = this.fromApiJsonHelper
                 .extractLongNamed(SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue(), element);
+        final Long fundsOnHoldAccountId = this.fromApiJsonHelper
+                .extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), element);
         final Long overdraftControlId = this.fromApiJsonHelper
                 .extractLongNamed(SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(), element);
         final Long incomeFromInterest = this.fromApiJsonHelper
@@ -164,6 +166,7 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 changes.put(SavingProductAccountingParams.INCOME_FROM_FEES.getValue(), incomeFromFeesId);
                 changes.put(SavingProductAccountingParams.INCOME_FROM_PENALTIES.getValue(), incomeFromPenaltiesId);
                 changes.put(SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue(), transfersInSuspenseAccountId);
+                changes.put(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), fundsOnHoldAccountId);
                 changes.put(SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(), overdraftControlId);
                 changes.put(SavingProductAccountingParams.INCOME_FROM_INTEREST.getValue(), incomeFromInterest);
                 changes.put(SavingProductAccountingParams.LOSSES_WRITTEN_OFF.getValue(), writeOffId);
@@ -182,6 +185,7 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 changes.put(SavingProductAccountingParams.INCOME_FROM_FEES.getValue(), incomeFromFeesId);
                 changes.put(SavingProductAccountingParams.INCOME_FROM_PENALTIES.getValue(), incomeFromPenaltiesId);
                 changes.put(SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue(), transfersInSuspenseAccountId);
+                changes.put(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), fundsOnHoldAccountId);
                 changes.put(SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(), overdraftControlId);
                 changes.put(SavingProductAccountingParams.INCOME_FROM_INTEREST.getValue(), incomeFromInterest);
                 changes.put(SavingProductAccountingParams.LOSSES_WRITTEN_OFF.getValue(), writeOffId);
@@ -246,6 +250,8 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 mergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue(),
                         savingsProductId, CashAccountsForSavings.TRANSFERS_SUSPENSE.getValue(),
                         CashAccountsForSavings.TRANSFERS_SUSPENSE.toString(), changes);
+                createOrmergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
+                        savingsProductId, CashAccountsForSavings.FUNDS_ON_HOLD.getValue(), changes);
                 createOrmergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.ESCHEAT_LIABILITY.getValue(),
                         savingsProductId, CashAccountsForSavings.ESCHEAT_LIABILITY.getValue(), changes);
             break;
@@ -301,6 +307,8 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 mergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue(),
                         savingsProductId, AccrualAccountsForSavings.TRANSFERS_SUSPENSE.getValue(),
                         AccrualAccountsForSavings.TRANSFERS_SUSPENSE.toString(), changes);
+                createOrmergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
+                        savingsProductId, AccrualAccountsForSavings.FUNDS_ON_HOLD.getValue(), changes);
 
                 mergeSavingsToLiabilityAccountMappingChanges(element, SavingProductAccountingParams.INTEREST_PAYABLE.getValue(),
                         savingsProductId, AccrualAccountsForSavings.INTEREST_PAYABLE.getValue(),

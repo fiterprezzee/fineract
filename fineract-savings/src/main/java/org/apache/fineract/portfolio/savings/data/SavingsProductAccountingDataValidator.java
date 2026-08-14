@@ -63,6 +63,13 @@ public class SavingsProductAccountingDataValidator {
                 baseDataValidator.reset().parameter(SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue())
                         .value(transfersInSuspenseAccountId).notNull().integerGreaterThanZero();
             }
+            if (fromApiJsonHelper.parameterExists(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), element)
+                    || ignoreExistenceValidation) {
+                final Long fundsOnHoldAccountId = fromApiJsonHelper.extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
+                        element);
+                baseDataValidator.reset().parameter(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue()).value(fundsOnHoldAccountId)
+                        .notNull().integerGreaterThanZero();
+            }
             if (fromApiJsonHelper.parameterExists(SavingProductAccountingParams.INTEREST_ON_SAVINGS.getValue(), element)
                     || ignoreExistenceValidation) {
                 final Long interestOnSavingsAccountId = fromApiJsonHelper

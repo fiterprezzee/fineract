@@ -694,10 +694,15 @@ public class SavingsAccountHelper {
     @Deprecated(forRemoval = true)
     public Object holdAmountInSavingsAccount(final Integer savingsID, final String amount, final Boolean lienAllowed, String date,
             String jsonAttributeToGetback) {
+        return holdAmountInSavingsAccount(savingsID, amount, lienAllowed, false, date, jsonAttributeToGetback);
+    }
+
+    public Object holdAmountInSavingsAccount(final Integer savingsID, final String amount, final Boolean lienAllowed, final Boolean preAuth,
+            String date, String jsonAttributeToGetback) {
         LOG.info("--------------------------------- SAVINGS TRANSACTION HOLD AMOUNT--------------------------------");
 
         return performSavingActions(createSavingsTransactionURL(HOLD_AMOUNT_SAVINGS_COMMAND, savingsID),
-                getLienSavingsTransactionJSON(amount, date, lienAllowed), jsonAttributeToGetback);
+                getLienSavingsTransactionJSON(amount, date, lienAllowed, preAuth), jsonAttributeToGetback);
     }
 
     // TODO: Rewrite to use fineract-client instead!
@@ -811,10 +816,6 @@ public class SavingsAccountHelper {
 
     private String getReleaseV2TransactionJSON(final String transactionDate) {
         return getReleaseV2TransactionJSON(transactionDate, null, false);
-    }
-
-    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount) {
-        return getReleaseV2TransactionJSON(transactionDate, transactionAmount, false);
     }
 
     private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount, final Boolean preAuth) {
@@ -942,14 +943,6 @@ public class SavingsAccountHelper {
     @Deprecated(forRemoval = true)
     private String getSavingsTransactionJSON(final String amount, final String transactionDate, final boolean isBulk) {
         return SavingsTransactionData.builder().transactionDate(transactionDate).transactionAmount(amount).isBulk(isBulk).build().getJson();
-    }
-
-    // TODO: Rewrite to use fineract-client instead!
-    // Example: org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper.disburseLoan(java.lang.Long,
-    // org.apache.fineract.client.models.PostLoansLoanIdRequest)
-    @Deprecated(forRemoval = true)
-    private String getLienSavingsTransactionJSON(final String amount, final String transactionDate, final Boolean lienAllowed) {
-        return getLienSavingsTransactionJSON(amount, transactionDate, lienAllowed, false);
     }
 
     private String getLienSavingsTransactionJSON(final String amount, final String transactionDate, final Boolean lienAllowed,

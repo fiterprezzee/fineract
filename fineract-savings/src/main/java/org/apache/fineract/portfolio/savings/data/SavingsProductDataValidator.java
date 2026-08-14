@@ -102,7 +102,7 @@ public class SavingsProductDataValidator {
             SavingProductAccountingParams.SAVINGS_REFERENCE.getValue(), SavingProductAccountingParams.FEE_INCOME_ACCOUNT_MAPPING.getValue(),
             SavingProductAccountingParams.PENALTY_INCOME_ACCOUNT_MAPPING.getValue(),
             SavingProductAccountingParams.FEES_RECEIVABLE.getValue(), SavingProductAccountingParams.INTEREST_PAYABLE.getValue(),
-            SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(),
+            SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(), SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
             SavingProductAccountingParams.LOSSES_WRITTEN_OFF.getValue(), SavingProductAccountingParams.INCOME_FROM_INTEREST.getValue(),
             SavingProductAccountingParams.ESCHEAT_LIABILITY.getValue(), SavingProductAccountingParams.INTEREST_RECEIVABLE.getValue(),
             isDormancyTrackingActiveParamName, daysToDormancyParamName, daysToInactiveParamName, daysToEscheatParamName,

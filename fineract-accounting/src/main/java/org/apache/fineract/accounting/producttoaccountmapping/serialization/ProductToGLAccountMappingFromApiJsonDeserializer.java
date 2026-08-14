@@ -186,6 +186,11 @@ public final class ProductToGLAccountMappingFromApiJsonDeserializer {
             baseDataValidator.reset().parameter(SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue())
                     .value(transfersInSuspenseAccountId).notNull().integerGreaterThanZero();
 
+            final Long fundsOnHoldAccountId = this.fromApiJsonHelper
+                    .extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), element);
+            baseDataValidator.reset().parameter(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue()).value(fundsOnHoldAccountId)
+                    .ignoreIfNull().integerGreaterThanZero();
+
             final Long interestOnSavingsAccountId = this.fromApiJsonHelper
                     .extractLongNamed(SavingProductAccountingParams.INTEREST_ON_SAVINGS.getValue(), element);
             baseDataValidator.reset().parameter(SavingProductAccountingParams.INTEREST_ON_SAVINGS.getValue())

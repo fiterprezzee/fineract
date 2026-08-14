@@ -135,8 +135,15 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
     @Column(name = "is_lien_transaction")
     private Boolean lienTransaction;
 
+    @Column(name = "is_pre_authorization", nullable = false)
+    private boolean preAuth;
+
     @Column(name = "ref_no", nullable = true)
     private String refNo;
+
+    // V2 Enhancement: Link withdrawal to its originating release transaction
+    @Column(name = "related_transaction_id")
+    private Long relatedTransactionId;
 
     SavingsAccountTransaction() {}
 
@@ -154,6 +161,7 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         this.submittedOnDate = DateUtils.getBusinessLocalDate();
         this.isManualTransaction = isManualTransaction;
         this.lienTransaction = lienTransaction;
+        this.preAuth = false;
         this.refNo = refNo;
     }
 
@@ -324,9 +332,12 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
     }
 
     public static SavingsAccountTransaction copyTransaction(SavingsAccountTransaction accountTransaction) {
-        return new SavingsAccountTransaction(accountTransaction.savingsAccount, accountTransaction.office, accountTransaction.paymentDetail,
-                accountTransaction.typeOf, accountTransaction.getTransactionDate(), accountTransaction.amount, accountTransaction.reversed,
-                accountTransaction.isManualTransaction, accountTransaction.lienTransaction, accountTransaction.refNo);
+        SavingsAccountTransaction transaction = new SavingsAccountTransaction(accountTransaction.savingsAccount, accountTransaction.office,
+                accountTransaction.paymentDetail, accountTransaction.typeOf, accountTransaction.getTransactionDate(),
+                accountTransaction.amount, accountTransaction.reversed, accountTransaction.isManualTransaction,
+                accountTransaction.lienTransaction, accountTransaction.refNo);
+        transaction.updatePreAuth(accountTransaction.preAuth);
+        return transaction;
     }
 
     public static SavingsAccountTransaction holdAmount(final SavingsAccount savingsAccount, final Office office,
@@ -345,9 +356,12 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
 
     public static SavingsAccountTransaction releaseAmount(SavingsAccountTransaction accountTransaction, LocalDate transactionDate,
             Money amount) {
-        return new SavingsAccountTransaction(accountTransaction.savingsAccount, accountTransaction.office, accountTransaction.paymentDetail,
-                SavingsAccountTransactionType.AMOUNT_RELEASE.getValue(), transactionDate, amount, accountTransaction.reversed,
-                accountTransaction.isManualTransaction, accountTransaction.lienTransaction, accountTransaction.refNo);
+        SavingsAccountTransaction transaction = new SavingsAccountTransaction(accountTransaction.savingsAccount, accountTransaction.office,
+                accountTransaction.paymentDetail, SavingsAccountTransactionType.AMOUNT_RELEASE.getValue(), transactionDate, amount,
+                accountTransaction.reversed, accountTransaction.isManualTransaction, accountTransaction.lienTransaction,
+                accountTransaction.refNo);
+        transaction.updatePreAuth(accountTransaction.preAuth);
+        return transaction;
     }
 
     public static SavingsAccountTransaction reversal(SavingsAccountTransaction accountTransaction) {
@@ -462,6 +476,14 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
 
     public void updateReason(String reasonForBlock) {
         this.reasonForBlock = reasonForBlock;
+    }
+
+    public void updatePreAuth(boolean preAuth) {
+        this.preAuth = preAuth;
+    }
+
+    public boolean isPreAuth() {
+        return this.preAuth;
     }
 
     public Long getReleaseIdOfHoldAmountTransaction() {
@@ -897,5 +919,15 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         return new SavingsAccountTransactionDetailsForPostingPeriod(getId(), this.dateOf, this.balanceEndDate, this.runningBalance,
                 this.amount, currency, this.balanceNumberOfDays, isDeposit(), isWithdrawal(), isAllowOverDraft,
                 isChargeTransactionAndNotReversed(), isDividendPayoutAndNotReversed());
+    }
+
+    // V2 Enhancement - Getters and Setters for release-withdrawal linkage
+
+    public Long getRelatedTransactionId() {
+        return this.relatedTransactionId;
+    }
+
+    public void setRelatedTransactionId(Long relatedTransactionId) {
+        this.relatedTransactionId = relatedTransactionId;
     }
 }

@@ -36,6 +36,7 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
         private String transactionAmount;
         private Long paymentTypeId;
         private String note;
+        private Boolean preAuth;
 
         private ReleaseAmountV2Request() {}
 
@@ -91,6 +92,15 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
 
         public void setNote(String note) {
             this.note = note;
+        }
+
+        @Schema(description = "Required settlement flag. Must match the preAuth value stored on the original hold transaction.", example = "true")
+        public Boolean getPreAuth() {
+            return preAuth;
+        }
+
+        public void setPreAuth(Boolean preAuth) {
+            this.preAuth = preAuth;
         }
     }
 
@@ -158,6 +168,7 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
         private Long withdrawalTransactionId;
         private String holdAmount;
         private String settlementAmount;
+        private Boolean preAuth;
 
         private ReleaseAmountV2Changes() {}
 
@@ -204,6 +215,15 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
 
         public void setSettlementAmount(String settlementAmount) {
             this.settlementAmount = settlementAmount;
+        }
+
+        @Schema(description = "The pre-authorization flag from the original hold transaction.", example = "true")
+        public Boolean getPreAuth() {
+            return preAuth;
+        }
+
+        public void setPreAuth(Boolean preAuth) {
+            this.preAuth = preAuth;
         }
     }
 }

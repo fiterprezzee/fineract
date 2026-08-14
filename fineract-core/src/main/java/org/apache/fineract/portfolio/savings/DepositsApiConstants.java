@@ -229,7 +229,7 @@ public final class DepositsApiConstants {
             SavingProductAccountingParams.PENALTY_INCOME_ACCOUNT_MAPPING.getValue(),
             SavingProductAccountingParams.INTEREST_PAYABLE.getValue(), SavingProductAccountingParams.PENALTIES_RECEIVABLE.getValue(),
             SavingProductAccountingParams.FEES_RECEIVABLE.getValue(), chartsParamName, SavingsApiConstants.withHoldTaxParamName,
-            SavingsApiConstants.taxGroupIdParamName));
+            SavingsApiConstants.taxGroupIdParamName, SavingsApiConstants.fundsOnHoldAccountIdParamName));
 
     private static final Set<String> PRECLOSURE_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(preClosurePenalApplicableParamName, preClosurePenalInterestParamName, preClosurePenalInterestOnTypeIdParamName));

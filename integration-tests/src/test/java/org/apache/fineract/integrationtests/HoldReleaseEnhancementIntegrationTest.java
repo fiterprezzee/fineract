@@ -32,8 +32,11 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import org.apache.fineract.client.models.PutGlobalConfigurationsRequest;
+import org.apache.fineract.infrastructure.configuration.api.GlobalConfigurationConstants;
 import org.apache.fineract.integrationtests.common.ClientHelper;
 import org.apache.fineract.integrationtests.common.CommonConstants;
+import org.apache.fineract.integrationtests.common.GlobalConfigurationHelper;
 import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.accounting.Account;
 import org.apache.fineract.integrationtests.common.accounting.AccountHelper;
@@ -68,6 +71,7 @@ public class HoldReleaseEnhancementIntegrationTest {
     private RequestSpecification requestSpec;
     private SavingsAccountHelper savingsAccountHelper;
     private SavingsProductHelper savingsProductHelper;
+    private GlobalConfigurationHelper globalConfigurationHelper;
     private AccountHelper accountHelper;
     private JournalEntryHelper journalEntryHelper;
 
@@ -236,6 +240,9 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertNotNull(error, "Standard hold should reject settlement amount above hold amount");
         assertEquals("error.msg.savingsaccount.release.amount.must.equal.hold.amount",
                 error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
+        assertNotNull(releaseTransactionId, "Hold should be released after rejection assertion so test cleanup can close the account");
     }
 
     @Test
@@ -332,11 +339,11 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
-    public void testV2ReleaseAllowsPreAuthAmountAboveHoldWithinConfiguredPercentageUsingOverdraft() {
+    public void testV2ReleaseAllowsPreAuthAmountAboveHoldWithinConfiguredPercentageUsingOnTheFlyOverdraft() {
         updatePreAuthReleaseAllowedPercentage(10L);
         try {
             final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
-            final Integer savingsProductId = createSavingsProductWithCashBasedAccountingAndOverdraft("100");
+            final Integer savingsProductId = createSavingsProductWithCashBasedAccountingAndOverdraftEnabledOnly();
             final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId,
                     ACCOUNT_TYPE_INDIVIDUAL);
 
@@ -348,7 +355,8 @@ public class HoldReleaseEnhancementIntegrationTest {
             assertNotNull(holdTransactionId);
 
             HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransactionId, "1050", true);
-            assertNotNull(v2Response, "PreAuth settlement within configured percentage should use overdraft for the excess shortage");
+            assertNotNull(v2Response,
+                    "PreAuth settlement within configured percentage should use on-the-fly overdraft for the excess shortage");
 
             HashMap changes = (HashMap) v2Response.get("changes");
             assertNotNull(changes);
@@ -576,6 +584,9 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertEquals(initialAccountBalance, accountBalanceAfterHold, 0.01, "Account balance should not change after hold");
         assertEquals(initialAvailableBalance - 300f, availableBalanceAfterHold, 0.01, "Available balance should be reduced by hold amount");
 
+        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
+        assertNotNull(releaseTransactionId, "Hold should be released after balance assertions so test cleanup can close the account");
+
         LOG.info("Test Hold Reduces Available Balance Only PASSED");
     }
 
@@ -606,6 +617,9 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertNotNull(error, "Withdrawal should fail when amount exceeds available balance");
         assertEquals("error.msg.savingsaccount.transaction.insufficient.account.balance",
                 error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
+        assertNotNull(releaseTransactionId, "Hold should be released after withdrawal rejection so test cleanup can close the account");
 
         LOG.info("Test Withdrawal Blocked By Hold PASSED");
     }
@@ -668,15 +682,33 @@ public class HoldReleaseEnhancementIntegrationTest {
      * Helper method to create a savings product with cash-based accounting.
      */
     private Integer createSavingsProductWithCashBasedAccounting() {
+        return createSavingsProductWithCashBasedAccounting(null);
+    }
+
+    private Integer createSavingsProductWithCashBasedAccountingAndOverdraftEnabledOnly() {
+        return createSavingsProductWithCashBasedAccounting("0");
+    }
+
+    private Integer createSavingsProductWithCashBasedAccounting(final String overdraftLimit) {
         Account[] accountList = new Account[] { this.savingsReferenceAccount, this.savingsControlAccount, this.interestOnSavingsAccount,
                 this.incomeFromFeeAccount, this.transfersInSuspenseAccount };
 
-        final String savingsProductJSON = this.savingsProductHelper.withInterestCompoundingPeriodTypeAsDaily()
+        SavingsProductHelper productHelper = this.savingsProductHelper.withInterestCompoundingPeriodTypeAsDaily()
                 .withInterestPostingPeriodTypeAsMonthly().withInterestCalculationPeriodTypeAsDailyBalance()
-                .withMinimumOpenningBalance(MINIMUM_OPENING_BALANCE)
-                .withFundsOnHoldAccountId(this.fundsOnHoldAccount.getAccountID().toString()).withAccountingRuleAsCashBased(accountList)
-                .build();
+                .withMinimumOpenningBalance(MINIMUM_OPENING_BALANCE);
+
+        if (overdraftLimit != null) {
+            productHelper = productHelper.withOverDraft(overdraftLimit);
+        }
+
+        final String savingsProductJSON = productHelper.withFundsOnHoldAccountId(this.fundsOnHoldAccount.getAccountID().toString())
+                .withAccountingRuleAsCashBased(accountList).build();
 
         return SavingsProductHelper.createSavingsProduct(savingsProductJSON, this.requestSpec, this.responseSpec);
+    }
+
+    private void updatePreAuthReleaseAllowedPercentage(final Long value) {
+        this.globalConfigurationHelper.updateGlobalConfiguration(GlobalConfigurationConstants.PRE_AUTH_RELEASE_ALLOWED_PERCENTAGE,
+                new PutGlobalConfigurationsRequest().enabled(true).value(value));
     }
 }

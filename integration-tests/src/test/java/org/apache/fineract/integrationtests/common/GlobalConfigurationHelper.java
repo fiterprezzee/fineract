@@ -105,8 +105,8 @@ public class GlobalConfigurationHelper {
         ArrayList<HashMap> expectedGlobalConfigurations = getAllDefaultGlobalConfigurations();
         GetGlobalConfigurationsResponse actualGlobalConfigurations = getAllGlobalConfigurations();
 
-        Assertions.assertEquals(59, expectedGlobalConfigurations.size());
-        Assertions.assertEquals(59, actualGlobalConfigurations.getGlobalConfiguration().size());
+        Assertions.assertEquals(60, expectedGlobalConfigurations.size());
+        Assertions.assertEquals(60, actualGlobalConfigurations.getGlobalConfiguration().size());
 
         for (int i = 0; i < expectedGlobalConfigurations.size(); i++) {
 

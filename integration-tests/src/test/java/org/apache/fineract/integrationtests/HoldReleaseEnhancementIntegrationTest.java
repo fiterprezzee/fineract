@@ -41,10 +41,12 @@ import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.accounting.Account;
 import org.apache.fineract.integrationtests.common.accounting.AccountHelper;
 import org.apache.fineract.integrationtests.common.accounting.JournalEntryHelper;
+import org.apache.fineract.integrationtests.common.charges.ChargesHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsAccountHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsProductHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsStatusChecker;
 import org.apache.fineract.integrationtests.common.savings.SavingsTestLifecycleExtension;
+import org.apache.fineract.portfolio.charge.domain.ChargeTimeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -462,6 +464,44 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
+    public void testV2ReleaseRejectsPreAuthOverdraftWhenRemainingHoldWouldBeUnfunded() {
+        updatePreAuthReleaseAllowedPercentage(10L);
+        try {
+            final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+            final Integer savingsProductId = createSavingsProductWithCashBasedAccountingAndOverdraftEnabledOnly();
+            final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId,
+                    ACCOUNT_TYPE_INDIVIDUAL);
+
+            this.savingsAccountHelper.approveSavings(savingsId);
+            this.savingsAccountHelper.activateSavings(savingsId);
+
+            Integer holdTransaction1Id = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "950", false, true,
+                    SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+            assertNotNull(holdTransaction1Id);
+
+            Integer holdTransaction2Id = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "50", false, true,
+                    SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+            assertNotNull(holdTransaction2Id);
+
+            ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
+            SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+
+            ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransaction1Id, "1045",
+                    true);
+            assertNotNull(error, "PreAuth release should reject when remaining hold would be unfunded");
+            assertEquals("error.msg.savingsaccount.transaction.insufficient.account.balance",
+                    error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+            Integer releaseTransaction1Id = this.savingsAccountHelper.releaseAmount(savingsId, holdTransaction1Id);
+            assertNotNull(releaseTransaction1Id, "Hold should be released after rejection assertion so test cleanup can close the account");
+            Integer releaseTransaction2Id = this.savingsAccountHelper.releaseAmount(savingsId, holdTransaction2Id);
+            assertNotNull(releaseTransaction2Id, "Remaining hold should be released so test cleanup can close the account");
+        } finally {
+            updatePreAuthReleaseAllowedPercentage(0L);
+        }
+    }
+
+    @Test
     public void testV2ReleaseRejectsPreAuthAmountAboveConfiguredPercentageEvenWhenFundsAvailable() {
         updatePreAuthReleaseAllowedPercentage(10L);
         try {
@@ -482,6 +522,42 @@ public class HoldReleaseEnhancementIntegrationTest {
 
             ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransactionId, "120", true);
             assertNotNull(error, "PreAuth settlement above configured percentage should reject even when funds are available");
+            assertEquals("error.msg.savingsaccount.release.amount.exceeds.allowed.preauth.percentage",
+                    error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+            Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
+            assertNotNull(releaseTransactionId, "Hold should be released after rejection assertion so test cleanup can close the account");
+        } finally {
+            updatePreAuthReleaseAllowedPercentage(0L);
+        }
+    }
+
+    @Test
+    public void testV2ReleaseRejectsPreAuthAmountAboveConfiguredPercentageIncludingWithdrawalFee() {
+        updatePreAuthReleaseAllowedPercentage(10L);
+        try {
+            final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+            final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+            final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId,
+                    ACCOUNT_TYPE_INDIVIDUAL);
+
+            this.savingsAccountHelper.approveSavings(savingsId);
+            this.savingsAccountHelper.activateSavings(savingsId);
+
+            final Integer withdrawalFeeChargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
+                    ChargesHelper.getSavingsJSON("10", "USD", ChargeTimeType.WITHDRAWAL_FEE));
+            assertNotNull(withdrawalFeeChargeId);
+            this.savingsAccountHelper.addChargesForSavings(savingsId, withdrawalFeeChargeId, false, BigDecimal.TEN);
+
+            Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "100", false, true,
+                    SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+            assertNotNull(holdTransactionId);
+
+            ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
+            SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+
+            ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransactionId, "110", true);
+            assertNotNull(error, "PreAuth settlement plus withdrawal fee should reject above configured percentage");
             assertEquals("error.msg.savingsaccount.release.amount.exceeds.allowed.preauth.percentage",
                     error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
 

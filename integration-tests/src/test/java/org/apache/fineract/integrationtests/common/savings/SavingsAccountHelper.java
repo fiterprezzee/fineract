@@ -775,6 +775,22 @@ public class SavingsAccountHelper {
                 getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, preAuth), "");
     }
 
+    public HashMap releaseAmountV2WithFullResponseEmptyBody(final Integer savingsId, final Integer holdTransactionId) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (EMPTY BODY) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, "{}", "");
+    }
+
+    public HashMap releaseAmountV2WithFullResponseWithoutPreAuth(final Integer savingsId, final Integer holdTransactionId,
+            final String transactionAmount) {
+        LOG.info(
+                "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (WITHOUT PREAUTH) --------------------------------");
+        final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, null, false), "");
+    }
+
     /**
      * V2 Release: Try to release and expect error response.
      */
@@ -819,6 +835,11 @@ public class SavingsAccountHelper {
     }
 
     private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount, final Boolean preAuth) {
+        return getReleaseV2TransactionJSON(transactionDate, transactionAmount, preAuth, true);
+    }
+
+    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount, final Boolean preAuth,
+            final boolean includePreAuth) {
         final HashMap<String, Object> map = new HashMap<>();
         map.put("locale", CommonConstants.LOCALE);
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
@@ -826,7 +847,9 @@ public class SavingsAccountHelper {
         if (transactionAmount != null) {
             map.put("transactionAmount", transactionAmount);
         }
-        map.put("preAuth", preAuth);
+        if (includePreAuth) {
+            map.put("preAuth", preAuth);
+        }
         return new Gson().toJson(map);
     }
 

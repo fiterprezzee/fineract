@@ -21,14 +21,23 @@
 -->
 <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
 
-    <!-- CUSTOM CHANGESETS - KEPT SEPARATE FROM COMMUNITY CHANGESETS -->
-    <!-- This master file includes all custom database changes to avoid conflicts with community upgrades -->
-    <!-- When community versions are updated, custom changes remain isolated and can be easily merged -->
-    <include file="custom/0004_hold_pre_authorization.xml" relativeToChangelogFile="true"/>
-    <include file="custom/0005_preauth_release_allowed_percentage_configuration.xml" relativeToChangelogFile="true"/>
-    <include file="custom/0006_related_transaction_id_savings_account_transaction.xml" relativeToChangelogFile="true"/>
-    <include file="custom/0007_release_amount_with_withdrawal_permission.xml" relativeToChangelogFile="true"/>
+    <changeSet author="fineract" id="1-add-release-amount-with-withdrawal-savings-permission">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM m_permission WHERE code = 'RELEASEAMOUNTWITHWITHDRAWAL_SAVINGSACCOUNT'
+            </sqlCheck>
+        </preConditions>
+
+        <insert tableName="m_permission">
+            <column name="grouping" value="transaction_savings"/>
+            <column name="code" value="RELEASEAMOUNTWITHWITHDRAWAL_SAVINGSACCOUNT"/>
+            <column name="entity_name" value="SAVINGSACCOUNT"/>
+            <column name="action_name" value="RELEASEAMOUNTWITHWITHDRAWAL"/>
+            <column name="can_maker_checker" valueBoolean="false"/>
+        </insert>
+    </changeSet>
 
 </databaseChangeLog>

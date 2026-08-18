@@ -271,6 +271,31 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
+    public void testReleaseRejectsNonHoldTransaction() {
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer depositTransactionId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId, "50",
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(depositTransactionId);
+
+        ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
+        SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+
+        ArrayList<HashMap> v1Error = (ArrayList<HashMap>) errorHelper.releaseAmountWithError(savingsId, depositTransactionId);
+        assertNotNull(v1Error, "V1 release should reject non-hold transactions");
+        assertEquals("error.msg.savingsaccount.transaction.is.not.hold", v1Error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+        ArrayList<HashMap> v2Error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, depositTransactionId);
+        assertNotNull(v2Error, "V2 release should reject non-hold transactions");
+        assertEquals("error.msg.savingsaccount.transaction.is.not.hold", v2Error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+    }
+
+    @Test
     public void testV2ReleaseAllowsPreAuthHoldAmountBelowHold() {
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
         final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
@@ -298,11 +323,39 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertEquals(true, changes.get("preAuth"));
         assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("200")));
         assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("180")));
+        assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "200");
+        assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "180");
 
         summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
         assertEquals(820f, (Float) summary.get("accountBalance"), 0.01, "PreAuth V2 release should withdraw only the settlement amount");
         assertEquals(820f, (Float) summary.get("availableBalance"), 0.01,
                 "PreAuth V2 release should clear the hold and leave available equal to account balance");
+    }
+
+    @Test
+    public void testV2ReleaseUsesStoredPreAuthWhenRequestOmitsPreAuth() {
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "200", false, true,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId);
+
+        HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponseWithoutPreAuth(savingsId, holdTransactionId, "180");
+        assertNotNull(v2Response, "V2 release should use the hold transaction preAuth value when omitted");
+
+        HashMap changes = (HashMap) v2Response.get("changes");
+        assertNotNull(changes);
+        assertEquals(holdTransactionId, changes.get("holdTransactionId"));
+        assertEquals(true, changes.get("preAuth"));
+        assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("200")));
+        assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("180")));
+        assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "200");
+        assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "180");
     }
 
     @Test
@@ -329,6 +382,8 @@ public class HoldReleaseEnhancementIntegrationTest {
             assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("100")));
             assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("105")));
             assertEquals(true, changes.get("preAuth"));
+            assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "100");
+            assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "105");
 
             HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
             assertEquals(895f, (Float) summary.get("accountBalance"), 0.01);
@@ -363,10 +418,44 @@ public class HoldReleaseEnhancementIntegrationTest {
             assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("1000")));
             assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("1050")));
             assertEquals(true, changes.get("preAuth"));
+            assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "1000");
+            assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "1050");
 
             HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
             assertEquals(-50f, (Float) summary.get("accountBalance"), 0.01);
             assertEquals(-50f, (Float) summary.get("availableBalance"), 0.01);
+        } finally {
+            updatePreAuthReleaseAllowedPercentage(0L);
+        }
+    }
+
+    @Test
+    public void testV2ReleaseRejectsPreAuthOverdraftAboveConfiguredLimit() {
+        updatePreAuthReleaseAllowedPercentage(10L);
+        try {
+            final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+            final Integer savingsProductId = createSavingsProductWithCashBasedAccounting("49");
+            final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId,
+                    ACCOUNT_TYPE_INDIVIDUAL);
+
+            this.savingsAccountHelper.approveSavings(savingsId);
+            this.savingsAccountHelper.activateSavings(savingsId);
+
+            Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "1000", false, true,
+                    SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+            assertNotNull(holdTransactionId);
+
+            ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
+            SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+
+            ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransactionId, "1050",
+                    true);
+            assertNotNull(error, "PreAuth release should reject when it would exceed the configured overdraft limit");
+            assertEquals("error.msg.savingsaccount.release.exceeds.overdraft.limit",
+                    error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+            Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
+            assertNotNull(releaseTransactionId, "Hold should be released after rejection assertion so test cleanup can close the account");
         } finally {
             updatePreAuthReleaseAllowedPercentage(0L);
         }
@@ -686,7 +775,7 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     private Integer createSavingsProductWithCashBasedAccountingAndOverdraftEnabledOnly() {
-        return createSavingsProductWithCashBasedAccounting("0");
+        return createSavingsProductWithCashBasedAccounting("50");
     }
 
     private Integer createSavingsProductWithCashBasedAccounting(final String overdraftLimit) {
@@ -710,5 +799,10 @@ public class HoldReleaseEnhancementIntegrationTest {
     private void updatePreAuthReleaseAllowedPercentage(final Long value) {
         this.globalConfigurationHelper.updateGlobalConfiguration(GlobalConfigurationConstants.PRE_AUTH_RELEASE_ALLOWED_PERCENTAGE,
                 new PutGlobalConfigurationsRequest().enabled(true).value(value));
+    }
+
+    private void assertTransactionAmount(final Integer savingsId, final Object transactionId, final String expectedAmount) {
+        HashMap transaction = this.savingsAccountHelper.getSavingsTransaction(savingsId, ((Number) transactionId).intValue());
+        assertEquals(0, new BigDecimal(transaction.get("amount").toString()).compareTo(new BigDecimal(expectedAmount)));
     }
 }

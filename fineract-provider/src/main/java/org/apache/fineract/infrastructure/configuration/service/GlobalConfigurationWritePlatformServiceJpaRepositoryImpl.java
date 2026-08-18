@@ -53,9 +53,8 @@ public class GlobalConfigurationWritePlatformServiceJpaRepositoryImpl implements
     @Override
     public CommandProcessingResult update(final Long configId, final JsonCommand command) {
         try {
-            this.globalConfigurationDataValidator.validateForUpdate(command);
-
             final GlobalConfigurationProperty configItemForUpdate = this.repository.findOneWithNotFoundDetection(configId);
+            this.globalConfigurationDataValidator.validateForUpdate(command, configItemForUpdate.getName());
 
             final Map<String, Object> changes = globalConfigurationPropertyUpdateService.update(configItemForUpdate, command);
 

@@ -313,6 +313,9 @@ public class SavingsAccountTransactionDataValidator {
 
         if (holdTransaction == null) {
             baseDataValidator.failWithCode("validation.msg.validation.errors.exist", "Transaction not found");
+        } else if (!holdTransaction.isAmountOnHold()) {
+            baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
+                    .failWithCode("validation.msg.transaction.is.not.hold", "Transaction is not a hold transaction");
         } else if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
             baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
                     .failWithCode("validation.msg.amount.is.not.on.hold", "Transaction amount is not on hold");
@@ -328,8 +331,8 @@ public class SavingsAccountTransactionDataValidator {
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
 
-        // Extract transactionDate from command, default to business date if not provided
-        LocalDate transactionDate = DateUtils.getBusinessLocalDate();
+        // Extract transactionDate from command, default to the original hold transaction date if not provided.
+        LocalDate transactionDate = holdTransaction == null ? DateUtils.getBusinessLocalDate() : holdTransaction.getTransactionDate();
         BigDecimal transactionAmount = holdTransaction == null ? null : holdTransaction.getAmount();
         if (command != null && command.parsedJson() != null) {
             final JsonElement element = command.parsedJson();
@@ -346,13 +349,16 @@ public class SavingsAccountTransactionDataValidator {
             }
             validatePaymentTypeDetails(baseDataValidator, element);
 
-            final Boolean requestedPreAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
-            baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).notNull().trueOrFalseRequired(requestedPreAuth);
+            if (this.fromApiJsonHelper.parameterExists(preAuthParamName, element)) {
+                final Boolean requestedPreAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
+                baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).ignoreIfNull()
+                        .trueOrFalseRequired(requestedPreAuth);
 
-            if (holdTransaction != null && requestedPreAuth != null && !requestedPreAuth.equals(holdTransaction.isPreAuth())) {
-                baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).failWithCode(
-                        "validation.msg.preauth.does.not.match.hold.transaction",
-                        "The preAuth parameter must match the original hold transaction");
+                if (holdTransaction != null && requestedPreAuth != null && !requestedPreAuth.equals(holdTransaction.isPreAuth())) {
+                    baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).failWithCode(
+                            "validation.msg.preauth.does.not.match.hold.transaction",
+                            "The preAuth parameter must match the original hold transaction");
+                }
             }
         }
 
@@ -370,6 +376,9 @@ public class SavingsAccountTransactionDataValidator {
 
         if (holdTransaction == null) {
             baseDataValidator.failWithCode("validation.msg.validation.errors.exist", "Transaction not found");
+        } else if (!holdTransaction.isAmountOnHold()) {
+            baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
+                    .failWithCode("validation.msg.transaction.is.not.hold", "Transaction is not a hold transaction");
         } else if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
             baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
                     .failWithCode("validation.msg.amount.is.not.on.hold", "Transaction amount is not on hold");

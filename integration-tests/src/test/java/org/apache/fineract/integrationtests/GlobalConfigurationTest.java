@@ -99,6 +99,18 @@ public class GlobalConfigurationTest {
     }
 
     @Test
+    public void testPreAuthReleaseAllowedPercentageCannotExceedOneHundred() {
+        String configName = GlobalConfigurationConstants.PRE_AUTH_RELEASE_ALLOWED_PERCENTAGE;
+        GlobalConfigurationPropertyData config = globalConfigurationHelper.getGlobalConfigurationByName(configName);
+        Assertions.assertNotNull(config);
+
+        CallFailedRuntimeException exception = assertThrows(CallFailedRuntimeException.class, () -> globalConfigurationHelper
+                .updateGlobalConfiguration(configName, new PutGlobalConfigurationsRequest().enabled(true).value(101L)));
+        assertEquals(400, exception.getResponse().code());
+        assertTrue(exception.getMessage().contains("validation.msg.globalConfiguration.value.is.greater.than.max"));
+    }
+
+    @Test
     public void testGetConfigurationPropertyById() {
         Long configId = 1L;
         GlobalConfigurationPropertyData configuration = assertDoesNotThrow(

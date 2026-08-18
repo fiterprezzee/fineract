@@ -94,7 +94,7 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
             this.note = note;
         }
 
-        @Schema(description = "Required settlement flag. Must match the preAuth value stored on the original hold transaction.", example = "true")
+        @Schema(description = "Optional settlement flag. When provided, it must match the preAuth value stored on the original hold transaction.", example = "true")
         public Boolean getPreAuth() {
             return preAuth;
         }

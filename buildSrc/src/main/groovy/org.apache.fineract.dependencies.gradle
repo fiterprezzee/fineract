@@ -30,13 +30,14 @@ dependencyManagement {
         // and spring-authorization-server 1.5.8 — clears criticals 3.5.14 left open
         // (spring-jms 6.2.19, spring-kafka 3.3.16) plus several Snyk highs.
         mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.15'
-        // netty-handler critical (Incorrect Comparison) is fixed in 4.1.135.Final
-        mavenBom 'io.netty:netty-bom:4.1.135.Final'
+        // Fixes CVE-2026-55833, CVE-2026-55831, CVE-2026-56819, CVE-2026-56745, CVE-2026-59901
+        mavenBom 'io.netty:netty-bom:4.1.136.Final'
         mavenBom 'io.awspring.cloud:spring-cloud-aws-dependencies:3.2.1'
         mavenBom 'io.opentelemetry:opentelemetry-bom:1.62.0'
         mavenBom 'org.jetbrains.kotlin:kotlin-bom:2.1.0'
         mavenBom 'org.junit:junit-bom:5.11.3'
-        mavenBom 'com.fasterxml.jackson:jackson-bom:2.21.2'
+        // Fix CVE-2026-59889
+        mavenBom 'com.fasterxml.jackson:jackson-bom:2.21.5'
         mavenBom 'io.cucumber:cucumber-bom:7.20.1'
         mavenBom 'org.mockito:mockito-bom:5.14.2'
         mavenBom 'software.amazon.awssdk:bom:2.29.9'
@@ -233,12 +234,15 @@ dependencyManagement {
         dependency 'org.mapstruct:mapstruct-processor:1.6.3'
 
         dependency "org.apache.avro:avro:1.12.0"
+        // Fix CVE-2026-59949 (transitive via avro/kafka)
+        dependency 'org.lz4:lz4-java:1.11.1'
 
         dependency ('org.mariadb.jdbc:mariadb-java-client:3.5.2') {
             exclude 'org.slf4j:jcl-over-slf4j'
             exclude 'org.slf4j:slf4j-api'
         }
-        dependency 'org.postgresql:postgresql:42.7.11'
+        // Fix CVE-2026-54291
+        dependency 'org.postgresql:postgresql:42.7.12'
 
         dependency 'com.mysql:mysql-connector-j:9.3.0'
 

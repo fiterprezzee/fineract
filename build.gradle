@@ -727,7 +727,6 @@ configure(project.fineractJavaProjects) {
         // reportLevel = com.github.spotbugs.snom.Confidence.DEFAULT
         showProgress = false
         excludeFilter = file("$rootDir/config/spotbugs/exclude.xml")
-        toolVersion = '4.9.4'
     }
     // https://github.com/spotbugs/spotbugs-gradle-plugin/issues/242
     spotbugsMain {

@@ -18,6 +18,11 @@
  */
 apply plugin: 'io.spring.dependency-management'
 
+// Override the netty.version property that spring-boot-dependencies interpolates
+// for all its netty entries. mavenBom 'io.netty:netty-bom' alone doesn't win against
+// spring-boot-dependencies' property-driven pins; setting the property does.
+ext['netty.version'] = '4.1.137.Final'
+
 // Configuration for the dependency management plugin
 // https://github.com/spring-gradle-plugins/dependency-management-plugin
 dependencyManagement {

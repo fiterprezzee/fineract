@@ -134,6 +134,8 @@ public class ClasspathDuplicatesStepDefinitions implements En {
                 || resourcePath.equals("META-INF/BC1024KE.DSA") //
                 || resourcePath.equals("META-INF/BC2048KE.SF") //
                 || resourcePath.equals("META-INF/BC1024KE.SF") //
+                || resourcePath.equals("META-INF/BCRSA204.SF") //
+                || resourcePath.equals("META-INF/BCRSA204.RSA") //
                 || resourcePath.equals("OSGI-INF/bundle.info") //
                 || resourcePath.equals("META-INF/DUMMY.SF") //
                 || resourcePath.equals("META-INF/DUMMY.DSA") //

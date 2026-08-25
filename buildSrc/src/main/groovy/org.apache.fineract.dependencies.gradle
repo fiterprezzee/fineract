@@ -18,6 +18,12 @@
  */
 apply plugin: 'io.spring.dependency-management'
 
+ext['netty.version'] = '4.1.137.Final'
+ext['micrometer.version'] = '1.16.7'
+ext['jackson-bom.version'] = '2.21.5'
+ext['logback.version'] = '1.5.36'
+ext['httpcore5.version'] = '5.4.3'
+
 // Configuration for the dependency management plugin
 // https://github.com/spring-gradle-plugins/dependency-management-plugin
 dependencyManagement {
@@ -132,7 +138,7 @@ dependencyManagement {
 
         dependency 'io.github.classgraph:classgraph:4.8.179'
         dependency 'org.awaitility:awaitility:4.2.2'
-        dependency 'com.github.spotbugs:spotbugs-annotations:4.8.6'
+        dependency 'com.github.spotbugs:spotbugs-annotations:4.9.4'
         dependency 'javax.cache:cache-api:1.1.1'
         dependency 'org.mock-server:mockserver-junit-jupiter:5.15.0'
         dependency 'org.webjars:webjars-locator-core:0.59'
@@ -159,10 +165,10 @@ dependencyManagement {
         dependency "commons-codec:commons-codec:1.17.1"
         dependency "org.projectlombok:lombok:1.18.36"
 
-        dependency 'org.bouncycastle:bcpkix-jdk18on:1.84'
-        dependency 'org.bouncycastle:bcprov-jdk18on:1.84'
-        dependency 'org.bouncycastle:bcutil-jdk18on:1.84'
-        dependency 'org.bouncycastle:bcpg-jdk18on:1.84'
+        dependency 'org.bouncycastle:bcpkix-jdk18on:1.85'
+        dependency 'org.bouncycastle:bcprov-jdk18on:1.85'
+        dependency 'org.bouncycastle:bcutil-jdk18on:1.85'
+        dependency 'org.bouncycastle:bcpg-jdk18on:1.85'
 
         dependency 'org.eclipse.jgit:org.eclipse.jgit:7.2.0.202503040940-r'
         dependency 'org.eclipse.jgit:org.eclipse.jgit.gpg.bc:7.2.0.202503040940-r'

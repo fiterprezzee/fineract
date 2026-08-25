@@ -727,7 +727,6 @@ configure(project.fineractJavaProjects) {
         // reportLevel = com.github.spotbugs.snom.Confidence.DEFAULT
         showProgress = false
         excludeFilter = file("$rootDir/config/spotbugs/exclude.xml")
-        // Snyk: bump spotbugs tool to clear httpcore5-h2 CVE-2026-54428/-54399 chain
         toolVersion = '4.9.4'
     }
     // https://github.com/spotbugs/spotbugs-gradle-plugin/issues/242

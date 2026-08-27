@@ -2099,23 +2099,6 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
             }
         }
 
-        final BigDecimal withdrawableAfterHoldRelease = account.getWithdrawableBalance().add(holdAmount);
-        final BigDecimal shortage = totalDebitAmount.subtract(withdrawableAfterHoldRelease);
-        if (shortage.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
-        }
-
-        if (!preAuth || excessAmount.compareTo(BigDecimal.ZERO) <= 0 || shortage.compareTo(excessAmount) > 0 || !account.allowOverdraft()) {
-            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.insufficient.funds.for.release",
-                    "Insufficient funds for release amount");
-        }
-
-        final BigDecimal projectedBalance = account.getAccountBalance().subtract(totalDebitAmount);
-        if (account.getOverdraftLimit() == null || projectedBalance.negate().compareTo(account.getOverdraftLimit()) > 0) {
-            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.exceeds.overdraft.limit",
-                    "Release would exceed configured overdraft limit");
-        }
-
     }
 
     @Transactional

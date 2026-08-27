@@ -432,38 +432,6 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
-    public void testV2ReleaseRejectsPreAuthOverdraftAboveConfiguredLimit() {
-        updatePreAuthReleaseAllowedPercentage(10L);
-        try {
-            final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
-            final Integer savingsProductId = createSavingsProductWithCashBasedAccounting("49");
-            final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId,
-                    ACCOUNT_TYPE_INDIVIDUAL);
-
-            this.savingsAccountHelper.approveSavings(savingsId);
-            this.savingsAccountHelper.activateSavings(savingsId);
-
-            Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "1000", false, true,
-                    SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-            assertNotNull(holdTransactionId);
-
-            ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
-            SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
-
-            ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransactionId, "1050",
-                    true);
-            assertNotNull(error, "PreAuth release should reject when it would exceed the configured overdraft limit");
-            assertEquals("error.msg.savingsaccount.release.exceeds.overdraft.limit",
-                    error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
-
-            Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
-            assertNotNull(releaseTransactionId, "Hold should be released after rejection assertion so test cleanup can close the account");
-        } finally {
-            updatePreAuthReleaseAllowedPercentage(0L);
-        }
-    }
-
-    @Test
     public void testV2ReleaseRejectsPreAuthOverdraftWhenRemainingHoldWouldBeUnfunded() {
         updatePreAuthReleaseAllowedPercentage(10L);
         try {

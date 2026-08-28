@@ -1965,6 +1965,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final BigDecimal settlementAmount = retrieveV2SettlementAmount(command, holdAmount);
         final BigDecimal withdrawalFeeAmount = calculateV2WithdrawalFeeAmount(account, settlementAmount);
         final boolean preAuth = holdTransaction.isPreAuth();
+        final BigDecimal expectedRemainingHoldAmount = account.getSavingsHoldAmount().subtract(holdAmount).max(BigDecimal.ZERO);
         validateV2ReleaseAmount(account, holdAmount, settlementAmount, withdrawalFeeAmount, preAuth);
         validateV2ReleaseWithdrawalAllowed(account, releaseTxn.getTransactionDate());
 
@@ -2010,7 +2011,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         // Add transactions to account
         account.addTransaction(releaseTxn);
         if (preAuth) {
-            validateV2RemainingHoldCoverage(account, settlementAmount);
+            validateV2RemainingHoldCoverage(account, settlementAmount, expectedRemainingHoldAmount);
         } else {
             validateV2ReleaseBalance(account, settlementAmount, backdatedTxnsAllowedTill);
         }
@@ -2099,8 +2100,14 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
     }
 
     private void validateV2RemainingHoldCoverage(final SavingsAccount account, final BigDecimal settlementAmount) {
-        if (account.getSavingsHoldAmount().compareTo(BigDecimal.ZERO) > 0
-                && account.getWithdrawableBalance().compareTo(BigDecimal.ZERO) < 0) {
+        validateV2RemainingHoldCoverage(account, settlementAmount, account.getSavingsHoldAmount());
+    }
+
+    private void validateV2RemainingHoldCoverage(final SavingsAccount account, final BigDecimal settlementAmount,
+            final BigDecimal remainingHoldAmount) {
+        final BigDecimal normalizedWithdrawableBalance = account.getWithdrawableBalance().add(account.getSavingsHoldAmount())
+                .subtract(remainingHoldAmount);
+        if (remainingHoldAmount.compareTo(BigDecimal.ZERO) > 0 && normalizedWithdrawableBalance.compareTo(BigDecimal.ZERO) < 0) {
             throw new InsufficientAccountBalanceException("transactionAmount", account.getAccountBalance(), null, settlementAmount);
         }
     }

@@ -380,8 +380,17 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final boolean isWithdrawBalance = false;
         final SavingsTransactionBooleanValues transactionBooleanValues = new SavingsTransactionBooleanValues(isAccountTransfer,
                 isRegularTransaction, isApplyWithdrawFee, isInterestTransfer, isWithdrawBalance);
+        final SavingsAccountTransaction preAuthHoldTransaction = retrieveAndValidateLatestReleasedPreAuthHoldTransaction(savingsId,
+                transactionAmount, account);
+        final boolean skipBalanceValidation = preAuthHoldTransaction != null
+                && account.getSavingsHoldAmount().compareTo(BigDecimal.ZERO) == 0;
         final SavingsAccountTransaction withdrawal = this.savingsAccountDomainService.handleWithdrawal(account, fmt, transactionDate,
-                transactionAmount, paymentDetail, transactionBooleanValues, backdatedTxnsAllowedTill);
+                transactionAmount, paymentDetail, transactionBooleanValues, backdatedTxnsAllowedTill, skipBalanceValidation);
+
+        if (preAuthHoldTransaction != null) {
+            withdrawal.setRelatedTransactionId(preAuthHoldTransaction.getReleaseIdOfHoldAmountTransaction());
+            this.savingsAccountTransactionRepository.saveAndFlush(withdrawal);
+        }
 
         if (isGsim && (withdrawal.getId() != null)) {
             GroupSavingsIndividualMonitoring gsim = gsimRepository.findById(account.getGsim().getId()).orElseThrow();
@@ -405,6 +414,25 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
                 .withSavingsId(savingsId) //
                 .with(changes)//
                 .build();
+    }
+
+    private SavingsAccountTransaction retrieveAndValidateLatestReleasedPreAuthHoldTransaction(final Long savingsId,
+            final BigDecimal transactionAmount, final SavingsAccount account) {
+        final Long configuredPercentage = this.configurationDomainService.retrievePreAuthReleaseAllowedPercentage();
+        if (configuredPercentage == null || configuredPercentage <= 0) {
+            return null;
+        }
+
+        final List<SavingsAccountTransaction> holdTransactions = this.savingsAccountTransactionRepository
+                .findLatestUnsettledReleasedPreAuthHoldBySavingsAccountId(savingsId, PageRequest.of(0, 1));
+        if (holdTransactions.isEmpty()) {
+            return null;
+        }
+
+        final SavingsAccountTransaction holdTransaction = holdTransactions.get(0);
+        final BigDecimal withdrawalFeeAmount = calculateV2WithdrawalFeeAmount(account, transactionAmount);
+        validateV2ReleaseAmount(account, holdTransaction.getAmount(), transactionAmount, withdrawalFeeAmount, true);
+        return holdTransaction;
     }
 
     @Transactional
@@ -1981,7 +2009,11 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         // Add transactions to account
         account.addTransaction(releaseTxn);
-        validateV2ReleaseBalance(account, settlementAmount, backdatedTxnsAllowedTill);
+        if (preAuth) {
+            validateV2RemainingHoldCoverage(account, settlementAmount);
+        } else {
+            validateV2ReleaseBalance(account, settlementAmount, backdatedTxnsAllowedTill);
+        }
 
         // Post journal entries for the withdrawal transaction
         this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,

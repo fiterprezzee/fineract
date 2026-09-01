@@ -531,7 +531,7 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
-    public void testV2ReleaseRejectsPreAuthOverdraftWhenRemainingHoldWouldBeUnfunded() {
+    public void testV2ReleaseAllowsPreAuthSettlementWithinPercentageWhenRemainingHoldWouldBeUnfunded() {
         updatePreAuthReleaseAllowedPercentage(10L);
         try {
             final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
@@ -550,17 +550,12 @@ public class HoldReleaseEnhancementIntegrationTest {
                     SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
             assertNotNull(holdTransaction2Id);
 
-            ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
-            SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+            HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransaction1Id, "1045", true);
+            assertNotNull(v2Response, "PreAuth settlement within configured percentage should not check remaining hold coverage");
 
-            ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransaction1Id, "1045",
-                    true);
-            assertNotNull(error, "PreAuth release should reject when remaining hold would be unfunded");
-            assertEquals("error.msg.savingsaccount.transaction.insufficient.account.balance",
-                    error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
-
-            Integer releaseTransaction1Id = this.savingsAccountHelper.releaseAmount(savingsId, holdTransaction1Id);
-            assertNotNull(releaseTransaction1Id, "Hold should be released after rejection assertion so test cleanup can close the account");
+            HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+            assertEquals(-45f, (Float) summary.get("accountBalance"), 0.01);
+            assertEquals(-95f, (Float) summary.get("availableBalance"), 0.01);
             Integer releaseTransaction2Id = this.savingsAccountHelper.releaseAmount(savingsId, holdTransaction2Id);
             assertNotNull(releaseTransaction2Id, "Remaining hold should be released so test cleanup can close the account");
         } finally {

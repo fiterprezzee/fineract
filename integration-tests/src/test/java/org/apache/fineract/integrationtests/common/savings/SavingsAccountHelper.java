@@ -960,6 +960,17 @@ public class SavingsAccountHelper {
                 .build().getJson();
     }
 
+    private String getSavingsTransactionJSON(final String amount, final String transactionDate, final Integer releaseTransactionId) {
+        final HashMap<String, Object> map = new HashMap<>();
+        map.put("locale", CommonConstants.LOCALE);
+        map.put("dateFormat", CommonConstants.DATE_FORMAT);
+        map.put("transactionDate", transactionDate);
+        map.put("transactionAmount", amount);
+        map.put("paymentTypeId", PAYMENT_TYPE_ID);
+        map.put("releaseTransactionId", releaseTransactionId);
+        return new Gson().toJson(map);
+    }
+
     // TODO: Rewrite to use fineract-client instead!
     // Example: org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper.disburseLoan(java.lang.Long,
     // org.apache.fineract.client.models.PostLoansLoanIdRequest)

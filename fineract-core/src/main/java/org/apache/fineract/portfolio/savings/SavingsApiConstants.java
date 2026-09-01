@@ -151,6 +151,7 @@ public class SavingsApiConstants {
     public static final String lienParamName = "lien";
     public static final String transactionAmountParamName = "transactionAmount";
     public static final String preAuthParamName = "preAuth";
+    public static final String releaseTransactionIdParamName = "releaseTransactionId";
     public static final String paymentDetailDataParamName = "paymentDetailData";
     public static final String runningBalanceParamName = "runningBalance";
     public static final String reversedParamName = "reversed";

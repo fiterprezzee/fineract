@@ -35,22 +35,28 @@ public interface SavingsAccountTransactionRepository
     SavingsAccountTransaction findOneByIdAndSavingsAccountId(@Param("transactionId") Long transactionId,
             @Param("savingsId") Long savingsId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select holdTxn from SavingsAccountTransaction holdTxn
             where holdTxn.savingsAccount.id = :savingsId
             and holdTxn.preAuth = true
-            and holdTxn.releaseIdOfHoldAmountTransaction is not null
+            and holdTxn.releaseIdOfHoldAmountTransaction = :releaseTransactionId
             and holdTxn.reversed = false
+            and exists (
+                select releaseTxn.id from SavingsAccountTransaction releaseTxn
+                where releaseTxn.savingsAccount.id = :savingsId
+                and releaseTxn.id = :releaseTransactionId
+                and releaseTxn.reversed = false
+            )
             and not exists (
                 select withdrawalTxn.id from SavingsAccountTransaction withdrawalTxn
                 where withdrawalTxn.savingsAccount.id = :savingsId
-                and withdrawalTxn.relatedTransactionId = holdTxn.releaseIdOfHoldAmountTransaction
+                and withdrawalTxn.relatedTransactionId = :releaseTransactionId
                 and withdrawalTxn.reversed = false
             )
-            order by holdTxn.dateOf desc, holdTxn.createdDate desc, holdTxn.id desc
             """)
-    List<SavingsAccountTransaction> findLatestUnsettledReleasedPreAuthHoldBySavingsAccountId(@Param("savingsId") Long savingsId,
-            Pageable pageable);
+    SavingsAccountTransaction findUnsettledReleasedPreAuthHoldBySavingsAccountIdAndReleaseTransactionId(@Param("savingsId") Long savingsId,
+            @Param("releaseTransactionId") Long releaseTransactionId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select st from SavingsAccountTransaction st where st.savingsAccount = :savingsAccount and st.dateOf >= :transactionDate order by st.dateOf,st.createdDate,st.id")

@@ -429,6 +429,13 @@ public class SavingsAccountHelper {
         return withdrawalFromSavingsAccount(savingsId, getSavingsTransactionJSON(amount, date), jsonAttributeToGetback);
     }
 
+    public Object withdrawalFromSavingsAccountWithReleaseTransactionId(final Integer savingsId, final String amount, String date,
+            final Integer releaseTransactionId, String jsonAttributeToGetback) {
+        LOG.info("\n--------------------------------- SAVINGS TRANSACTION PREAUTH SETTLEMENT WITHDRAWAL --------------------------------");
+        return withdrawalFromSavingsAccount(savingsId, getSavingsTransactionJSON(amount, date, releaseTransactionId),
+                jsonAttributeToGetback);
+    }
+
     public Response<PostSavingsAccountTransactionsResponse> withdrawalFromSavingsAccount(final Long savingsId,
             PostSavingsAccountTransactionsRequest request) {
         return Calls.executeU(FineractClientHelper.getFineractClient().savingsTransactions.transaction2(savingsId, request, "withdrawal"));

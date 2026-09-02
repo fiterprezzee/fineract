@@ -1,0 +1,247 @@
+name: Terraform Deploy
+run-name: Terraform ${{ inputs.operation }} Fineract in ${{ inputs.environment }}
+
+# OIDC-direct Terraform deploy for Fineract services.
+# Replaces the legacy direct-ECS deploy path once fully rolled out per environment.
+# Deploys fineract-read and fineract-write (same fineract image) and fineract-webapp in parallel.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      operation:
+        description: Terraform plan (no-op) or apply (deploy)
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+      fineract_version:
+        description: Fineract ECR image tag (used for fineract-read and fineract-write)
+        required: true
+        type: string
+      fineract_webapp_version:
+        description: Fineract webapp ECR image tag
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ATMOS_PROFILE: github-service-deploy
+  ARTIFACT_ACCOUNT_ID: "364777501454"
+  PLAT_DEV_ACCOUNT_ID: "288045296691"
+  PLAT_STAGING_ACCOUNT_ID: "685716748697"
+  PLAT_PROD_ACCOUNT_ID: "570110656682"
+  SSM_ACCOUNT_ID: "196936075221"
+  AWS_REGION: eu-central-1
+  INFRA_REPO: PrezzeePay/prezzeepay-infra
+  INFRA_REF: main
+  AWSCLI_VERSION: 2.17.16
+  AWSCLI_SHA256: 04df08393ed920bcd40c51eb6bff44acafc9783232fad955cbafca56860632ee
+
+jobs:
+  terraform:
+    name: ${{ inputs.operation }} ${{ matrix.service }} in ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    # The environment supplies the OIDC sub claim required by the deploy role trust policy.
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: ${{ github.repository }}-${{ matrix.service }}-${{ inputs.environment }}-deploy
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: fineract-read
+            ecr_repo: prezzeepay/fineract
+            version: ${{ inputs.fineract_version }}
+          - service: fineract-write
+            ecr_repo: prezzeepay/fineract
+            version: ${{ inputs.fineract_version }}
+          - service: fineract-webapp
+            ecr_repo: prezzeepay/fineract-webapp
+            version: ${{ inputs.fineract_webapp_version }}
+    container:
+      image: ghcr.io/cloudposse/atmos:1.224.1
+    defaults:
+      run:
+        shell: bash
+    env:
+      ENV: ${{ inputs.environment }}
+      SERVICE: ${{ matrix.service }}
+      ECR_REPO: ${{ matrix.ecr_repo }}
+      VERSION: ${{ matrix.version }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - name: Validate inputs and set deployment variables
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::invalid Docker/ECR image tag: '$VERSION'"
+            exit 1
+          fi
+          if [[ "$OPERATION" != plan && "$OPERATION" != apply ]]; then
+            echo "::error::operation must be plan or apply"
+            exit 1
+          fi
+
+          case "$ENV" in
+            dev)     PLAT_ACCOUNT_ID="$PLAT_DEV_ACCOUNT_ID" ;;
+            staging) PLAT_ACCOUNT_ID="$PLAT_STAGING_ACCOUNT_ID" ;;
+            prod)    PLAT_ACCOUNT_ID="$PLAT_PROD_ACCOUNT_ID" ;;
+            *)       echo "::error::unknown environment: $ENV"; exit 1 ;;
+          esac
+
+          {
+            echo "COMPONENT=ecs-service/$SERVICE"
+            echo "STACK=plat-euc1-$ENV"
+            echo "SSM_PATH=/plat/euc1/$ENV/ecs-service/$SERVICE/image"
+            echo "IMAGE=${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:$VERSION"
+            echo "SSM_WRITER_ROLE=arn:aws:iam::${SSM_ACCOUNT_ID}:role/pp-core-euc1-root-ssm-$SERVICE-$ENV-gha"
+            echo "ARTIFACT_ECR_ROLE=arn:aws:iam::${ARTIFACT_ACCOUNT_ID}:role/pp-core-euc1-artifacts-fineract-gha"
+            echo "DEPLOY_ROLE=arn:aws:iam::${PLAT_ACCOUNT_ID}:role/pp-plat-euc1-$ENV-$SERVICE-deploy"
+            echo "ECS_CLUSTER=pp-plat-euc1-$ENV-fineract-cluster"
+            echo "ECS_SERVICE=pp-plat-euc1-$ENV-$SERVICE"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out protected prezzeepay-infra main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ env.INFRA_REPO }}
+          ref: ${{ env.INFRA_REF }}
+          token: ${{ secrets.CICD_GITHUB_ACCESS_TOKEN }}
+          path: infra
+          persist-credentials: false
+
+      - name: Install pinned AWS CLI
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" \
+            --output /tmp/awscliv2.zip
+          echo "${AWSCLI_SHA256}  /tmp/awscliv2.zip" | sha256sum --check --status
+          perl -MIO::Uncompress::Unzip -MFile::Basename=dirname -MFile::Path=make_path -e '
+            my $zip = IO::Uncompress::Unzip->new($ARGV[0]) or die "open zip: $IO::Uncompress::Unzip::UnzipError\n";
+            while (my $header = $zip->getHeaderInfo()) {
+              my $name = $header->{Name};
+              die "unsafe zip path: $name\n" if $name =~ m{(?:^|/)\.\.(?:/|$)};
+              my $path = "/tmp/awscli/$name";
+              if ($name !~ m{/$}) {
+                make_path(dirname($path));
+                open my $out, ">", $path or die "write $path: $!\n";
+                while ($zip->read(my $buffer) > 0) { print {$out} $buffer; }
+                close $out or die "close $path: $!\n";
+              }
+              last unless $zip->nextStream();
+            }
+          ' /tmp/awscliv2.zip
+          chmod -R u+rx /tmp/awscli
+          /tmp/awscli/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli
+          aws --version
+
+      - name: Assume artifact ECR read role
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve target image
+        run: |
+          set -euo pipefail
+          aws ecr describe-images \
+            --region "$AWS_REGION" \
+            --registry-id "$ARTIFACT_ACCOUNT_ID" \
+            --repository-name "$ECR_REPO" \
+            --image-ids "imageTag=$VERSION" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text
+
+      - name: Assume the SSM writer role
+        if: inputs.operation == 'apply'
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.SSM_WRITER_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pin image in core-root SSM
+        if: inputs.operation == 'apply'
+        run: |
+          set -euo pipefail
+          aws ssm put-parameter \
+            --region "$AWS_REGION" \
+            --type String \
+            --overwrite \
+            --name "$SSM_PATH" \
+            --value "$IMAGE"
+
+      - name: Clear non-deploy AWS credentials
+        run: |
+          set -euo pipefail
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_CREDENTIAL_EXPIRATION; do
+            echo "$name=" >> "$GITHUB_ENV"
+          done
+
+      - name: Run through Atmos Terraform
+        working-directory: infra
+        run: |
+          set -euo pipefail
+          if [[ "$OPERATION" == plan ]]; then
+            atmos terraform plan "$COMPONENT" --stack "$STACK" --identity deploy
+          else
+            atmos terraform deploy "$COMPONENT" --stack "$STACK" --identity deploy
+          fi
+
+      - name: Assume deploy role for ECS monitoring
+        if: inputs.operation == 'apply'
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Wait for ECS deployment to stabilise
+        if: inputs.operation == 'apply'
+        run: |
+          set -euo pipefail
+          echo "Waiting for $ECS_SERVICE in $ECS_CLUSTER to stabilise..."
+          aws ecs wait services-stable \
+            --region "$AWS_REGION" \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
+          echo "ECS deployment stable."
+
+      - name: Promote the live image tag
+        if: inputs.operation == 'apply'
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Tag current-ENV in ECR
+        if: inputs.operation == 'apply'
+        run: |
+          set -euo pipefail
+          manifest="$(aws ecr batch-get-image \
+            --region "$AWS_REGION" \
+            --registry-id "$ARTIFACT_ACCOUNT_ID" \
+            --repository-name "$ECR_REPO" \
+            --image-ids "imageTag=$VERSION" \
+            --query 'images[0].imageManifest' \
+            --output text)"
+          aws ecr put-image \
+            --region "$AWS_REGION" \
+            --registry-id "$ARTIFACT_ACCOUNT_ID" \
+            --repository-name "$ECR_REPO" \
+            --image-tag "current-$ENV" \
+            --image-manifest "$manifest" || {
+            echo "current-$ENV already points to this image digest, skipping."
+          }

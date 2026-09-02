@@ -65,12 +65,15 @@ jobs:
           - service: fineract-read
             ecr_repo: prezzeepay/fineract
             version: ${{ inputs.fineract_version }}
+            promote_tag: false   # fineract-write handles current-* promotion for the shared repo
           - service: fineract-write
             ecr_repo: prezzeepay/fineract
             version: ${{ inputs.fineract_version }}
+            promote_tag: true
           - service: fineract-webapp
             ecr_repo: prezzeepay/fineract-webapp
             version: ${{ inputs.fineract_webapp_version }}
+            promote_tag: true
     container:
       image: ghcr.io/cloudposse/atmos:1.224.1
     defaults:
@@ -82,6 +85,7 @@ jobs:
       ECR_REPO: ${{ matrix.ecr_repo }}
       VERSION: ${{ matrix.version }}
       OPERATION: ${{ inputs.operation }}
+      PROMOTE_TAG: ${{ matrix.promote_tag }}
     steps:
       - name: Validate inputs and set deployment variables
         run: |
@@ -106,7 +110,6 @@ jobs:
             echo "COMPONENT=ecs-service/$SERVICE"
             echo "STACK=plat-euc1-$ENV"
             echo "SSM_PATH=/plat/euc1/$ENV/ecs-service/$SERVICE/image"
-            echo "IMAGE=${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:$VERSION"
             echo "SSM_WRITER_ROLE=arn:aws:iam::${SSM_ACCOUNT_ID}:role/pp-core-euc1-root-ssm-$SERVICE-$ENV-gha"
             echo "ARTIFACT_ECR_ROLE=arn:aws:iam::${ARTIFACT_ACCOUNT_ID}:role/pp-core-euc1-artifacts-fineract-gha"
             echo "DEPLOY_ROLE=arn:aws:iam::${PLAT_ACCOUNT_ID}:role/pp-plat-euc1-$ENV-$SERVICE-deploy"
@@ -134,7 +137,7 @@ jobs:
             my $zip = IO::Uncompress::Unzip->new($ARGV[0]) or die "open zip: $IO::Uncompress::Unzip::UnzipError\n";
             while (my $header = $zip->getHeaderInfo()) {
               my $name = $header->{Name};
-              die "unsafe zip path: $name\n" if $name =~ m{(?:^|/)\.\.(?:/|$)};
+              die "unsafe zip path: $name\n" if $name =~ m{(?:^|/)\.\..(?:/|$)};
               my $path = "/tmp/awscli/$name";
               if ($name !~ m{/$}) {
                 make_path(dirname($path));
@@ -155,16 +158,27 @@ jobs:
           role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve target image
+      - name: Resolve target image digest
         run: |
           set -euo pipefail
-          aws ecr describe-images \
+          # Resolve the mutable tag to an immutable digest and store the digest-pinned
+          # image URI in SSM. This prevents a tag re-push between resolve and ECS pull
+          # from substituting a different image than the one we verified here.
+          DIGEST=$(aws ecr describe-images \
             --region "$AWS_REGION" \
             --registry-id "$ARTIFACT_ACCOUNT_ID" \
             --repository-name "$ECR_REPO" \
             --image-ids "imageTag=$VERSION" \
             --query 'imageDetails[0].imageDigest' \
-            --output text
+            --output text)
+          if [[ -z "$DIGEST" || "$DIGEST" == "None" ]]; then
+            echo "::error::could not resolve digest for $ECR_REPO:$VERSION"
+            exit 1
+          fi
+          echo "Resolved $ECR_REPO:$VERSION → $DIGEST"
+          # Store digest-pinned URI so SSM (and Terraform) consume an immutable reference
+          DIGEST_IMAGE="${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}@${DIGEST}"
+          echo "DIGEST_IMAGE=$DIGEST_IMAGE" >> "$GITHUB_ENV"
 
       - name: Assume the SSM writer role
         if: inputs.operation == 'apply'
@@ -173,16 +187,18 @@ jobs:
           role-to-assume: ${{ env.SSM_WRITER_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Pin image in core-root SSM
+      - name: Pin image digest in core-root SSM
         if: inputs.operation == 'apply'
         run: |
           set -euo pipefail
+          # Write the digest-pinned URI — not the mutable tag — so Terraform picks up
+          # exactly the image we resolved and verified above.
           aws ssm put-parameter \
             --region "$AWS_REGION" \
             --type String \
             --overwrite \
             --name "$SSM_PATH" \
-            --value "$IMAGE"
+            --value "$DIGEST_IMAGE"
 
       - name: Clear non-deploy AWS credentials
         run: |
@@ -220,14 +236,14 @@ jobs:
           echo "ECS deployment stable."
 
       - name: Promote the live image tag
-        if: inputs.operation == 'apply'
+        if: inputs.operation == 'apply' && matrix.promote_tag == true
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Tag current-ENV in ECR
-        if: inputs.operation == 'apply'
+        if: inputs.operation == 'apply' && matrix.promote_tag == true
         run: |
           set -euo pipefail
           manifest="$(aws ecr batch-get-image \
@@ -237,11 +253,20 @@ jobs:
             --image-ids "imageTag=$VERSION" \
             --query 'images[0].imageManifest' \
             --output text)"
-          aws ecr put-image \
+          if [[ -z "$manifest" || "$manifest" == "None" ]]; then
+            echo "::error::could not retrieve manifest for $ECR_REPO:$VERSION"
+            exit 1
+          fi
+          err=$(aws ecr put-image \
             --region "$AWS_REGION" \
             --registry-id "$ARTIFACT_ACCOUNT_ID" \
             --repository-name "$ECR_REPO" \
             --image-tag "current-$ENV" \
-            --image-manifest "$manifest" || {
-            echo "current-$ENV already points to this image digest, skipping."
+            --image-manifest "$manifest" 2>&1) && echo "Tagged current-$ENV" || {
+            if echo "$err" | grep -q "ImageAlreadyExistsException"; then
+              echo "current-$ENV already points to this digest, skipping."
+            else
+              echo "::error::$err"
+              exit 1
+            fi
           }

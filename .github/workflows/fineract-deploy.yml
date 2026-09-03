@@ -188,9 +188,24 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Pin image digest in core-root SSM
+        id: pin_image
         if: inputs.operation == 'apply'
         run: |
           set -euo pipefail
+          # Terraform must read the new value to render the new task definition.
+          # Retain the current value so it can be restored if the deploy or ECS
+          # stability check fails before the image is confirmed live.
+          PREVIOUS_IMAGE="$(aws ssm get-parameter \
+            --region "$AWS_REGION" \
+            --name "$SSM_PATH" \
+            --query 'Parameter.Value' \
+            --output text)"
+          if [[ -z "$PREVIOUS_IMAGE" || "$PREVIOUS_IMAGE" == "None" ]]; then
+            echo "::error::refusing to replace missing SSM image parameter $SSM_PATH"
+            exit 1
+          fi
+          echo "PREVIOUS_IMAGE=$PREVIOUS_IMAGE" >> "$GITHUB_ENV"
+
           # Write the digest-pinned URI — not the mutable tag — so Terraform picks up
           # exactly the image we resolved and verified above.
           aws ssm put-parameter \
@@ -208,6 +223,7 @@ jobs:
           done
 
       - name: Run through Atmos Terraform
+        id: run_terraform
         working-directory: infra
         run: |
           set -euo pipefail
@@ -225,6 +241,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Wait for ECS deployment to stabilise
+        id: wait_for_ecs
         if: inputs.operation == 'apply'
         run: |
           set -euo pipefail
@@ -234,6 +251,25 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE"
           echo "ECS deployment stable."
+
+      - name: Assume SSM writer role for failure recovery
+        if: failure() && inputs.operation == 'apply' && steps.pin_image.outcome == 'success' && (steps.run_terraform.outcome == 'failure' || steps.wait_for_ecs.outcome == 'failure')
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.SSM_WRITER_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Restore previous image digest after failed deploy
+        if: failure() && inputs.operation == 'apply' && steps.pin_image.outcome == 'success' && (steps.run_terraform.outcome == 'failure' || steps.wait_for_ecs.outcome == 'failure')
+        run: |
+          set -euo pipefail
+          aws ssm put-parameter \
+            --region "$AWS_REGION" \
+            --type String \
+            --overwrite \
+            --name "$SSM_PATH" \
+            --value "$PREVIOUS_IMAGE"
+          echo "::warning::restored $SSM_PATH to its pre-deploy image digest after deployment failure"
 
       - name: Promote the live image tag
         if: inputs.operation == 'apply' && matrix.promote_tag == true

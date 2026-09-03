@@ -21,6 +21,7 @@ package org.apache.fineract.infrastructure.configuration.data;
 import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.configuration.api.GlobalConfigurationApiConstant;
+import org.apache.fineract.infrastructure.configuration.api.GlobalConfigurationConstants;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.data.DataValidatorBuilder;
@@ -54,6 +56,10 @@ public class GlobalConfigurationDataValidator {
     }
 
     public void validateForUpdate(final JsonCommand command) {
+        validateForUpdate(command, null);
+    }
+
+    public void validateForUpdate(final JsonCommand command, final String configName) {
         final String json = command.json();
         if (StringUtils.isBlank(json)) {
             throw new InvalidJsonException();
@@ -74,7 +80,11 @@ public class GlobalConfigurationDataValidator {
 
         if (this.fromApiJsonHelper.parameterExists(GlobalConfigurationApiConstant.VALUE, element)) {
             final Long valueStr = this.fromApiJsonHelper.extractLongNamed(GlobalConfigurationApiConstant.VALUE, element);
-            baseDataValidator.reset().parameter(GlobalConfigurationApiConstant.ENABLED).value(valueStr).zeroOrPositiveAmount();
+            baseDataValidator.reset().parameter(GlobalConfigurationApiConstant.VALUE).value(valueStr).zeroOrPositiveAmount();
+            if (GlobalConfigurationConstants.PRE_AUTH_RELEASE_ALLOWED_PERCENTAGE.equals(configName)) {
+                baseDataValidator.reset().parameter(GlobalConfigurationApiConstant.VALUE).value(valueStr)
+                        .notGreaterThanMax(BigDecimal.valueOf(100));
+            }
         }
 
         if (this.fromApiJsonHelper.parameterExists(GlobalConfigurationApiConstant.DATE_VALUE, element)) {

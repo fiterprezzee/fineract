@@ -24,6 +24,7 @@ import static org.apache.fineract.portfolio.savings.SavingsApiConstants.amountPa
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.chargeIdParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.dueAsOfDateParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.lienAllowedParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.releaseTransactionIdParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionAmountParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionDateParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.withHoldTaxParamName;
@@ -117,6 +118,8 @@ import org.apache.fineract.portfolio.savings.domain.SavingsAccountRepositoryWrap
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountStatusType;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransaction;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransactionRepository;
+import org.apache.fineract.portfolio.savings.exception.DepositAccountTransactionNotAllowedException;
+import org.apache.fineract.portfolio.savings.exception.InsufficientAccountBalanceException;
 import org.apache.fineract.portfolio.savings.exception.PostInterestAsOnDateException;
 import org.apache.fineract.portfolio.savings.exception.PostInterestAsOnDateException.PostInterestAsOnExceptionType;
 import org.apache.fineract.portfolio.savings.exception.PostInterestClosingDateException;
@@ -378,8 +381,19 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final boolean isWithdrawBalance = false;
         final SavingsTransactionBooleanValues transactionBooleanValues = new SavingsTransactionBooleanValues(isAccountTransfer,
                 isRegularTransaction, isApplyWithdrawFee, isInterestTransfer, isWithdrawBalance);
+        final Long releaseTransactionId = command.hasParameter(releaseTransactionIdParamName)
+                ? command.longValueOfParameterNamed(releaseTransactionIdParamName)
+                : null;
+        final SavingsAccountTransaction preAuthHoldTransaction = retrieveAndValidateReleasedPreAuthHoldTransaction(savingsId,
+                releaseTransactionId, transactionAmount, account);
+        final boolean skipBalanceValidation = preAuthHoldTransaction != null;
         final SavingsAccountTransaction withdrawal = this.savingsAccountDomainService.handleWithdrawal(account, fmt, transactionDate,
-                transactionAmount, paymentDetail, transactionBooleanValues, backdatedTxnsAllowedTill);
+                transactionAmount, paymentDetail, transactionBooleanValues, backdatedTxnsAllowedTill, skipBalanceValidation);
+
+        if (preAuthHoldTransaction != null) {
+            withdrawal.setRelatedTransactionId(releaseTransactionId);
+            this.savingsAccountTransactionRepository.saveAndFlush(withdrawal);
+        }
 
         if (isGsim && (withdrawal.getId() != null)) {
             GroupSavingsIndividualMonitoring gsim = gsimRepository.findById(account.getGsim().getId()).orElseThrow();
@@ -403,6 +417,24 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
                 .withSavingsId(savingsId) //
                 .with(changes)//
                 .build();
+    }
+
+    private SavingsAccountTransaction retrieveAndValidateReleasedPreAuthHoldTransaction(final Long savingsId,
+            final Long releaseTransactionId, final BigDecimal transactionAmount, final SavingsAccount account) {
+        if (releaseTransactionId == null) {
+            return null;
+        }
+
+        final SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
+                .findUnsettledReleasedPreAuthHoldBySavingsAccountIdAndReleaseTransactionId(savingsId, releaseTransactionId);
+        if (holdTransaction == null) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.transaction.invalid.or.already.settled",
+                    "Release transaction is invalid or already settled", releaseTransactionId);
+        }
+
+        final BigDecimal withdrawalFeeAmount = calculateV2WithdrawalFeeAmount(account, transactionAmount);
+        validateV2ReleaseAmount(account, holdTransaction.getAmount(), transactionAmount, withdrawalFeeAmount, true);
+        return holdTransaction;
     }
 
     @Transactional
@@ -1752,6 +1784,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         final LocalDate transactionDate = command.localDateValueOfParameterNamed(transactionDateParamName);
         final boolean lienAllowed = command.booleanPrimitiveValueOfParameterNamed(lienAllowedParamName);
+        final boolean preAuth = command.booleanPrimitiveValueOfParameterNamed(SavingsApiConstants.preAuthParamName);
 
         checkClientOrGroupActive(account);
 
@@ -1767,6 +1800,8 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountTransactionDataValidator.validateHoldAndAssembleForm(command.json(), account, submittedBy,
                 backdatedTxnsAllowedTill);
         SavingsAccountTransaction transaction = this.savingsAccountDomainService.handleHold(account, amount, transactionDate, lienAllowed);
+        transaction.updatePreAuth(preAuth);
+
         account.holdAmount(amount);
         transaction.setRunningBalance(runningBalance);
 
@@ -1776,7 +1811,26 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         account.getAccountBalance();
         this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(transaction.getTransactionDate(), account);
 
+        final Set<Long> existingTransactionIds = new HashSet<>();
+        final Set<Long> existingReversedTransactionIds = new HashSet<>();
+        if (backdatedTxnsAllowedTill) {
+            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
+            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
+        } else {
+            existingTransactionIds.addAll(account.findExistingTransactionIds());
+            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
+        }
+
+        // Save transaction first to get ID
         this.savingsAccountTransactionRepository.saveAndFlush(transaction);
+
+        account.addTransaction(transaction);
+
+        // Post journal entries (includes HOLD GL posting)
+        this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
+                backdatedTxnsAllowedTill);
+
+        this.savingsAccountTransactionRepository.save(transaction);
 
         if (backdatedTxnsAllowedTill) {
             // Check again whether transactions are modified
@@ -1789,47 +1843,294 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(savingsId).build();
     }
 
+    /**
+     * V1 Release Amount - performs release only (no withdrawal, no journal entries). Existing hold-release linkage is
+     * maintained via release_id_of_hold_amount column.
+     */
     @Transactional
     @Override
     public CommandProcessingResult releaseAmount(final Long savingsId, final Long savingsTransactionId) {
         context.authenticatedUser();
-        SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
-                .findOneByIdAndSavingsAccountId(savingsTransactionId, savingsId);
-
-        holdTransaction.updateReason(null);
-
-        final SavingsAccountTransaction transaction = this.savingsAccountTransactionDataValidator
-                .validateReleaseAmountAndAssembleForm(holdTransaction);
 
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
         final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         checkClientOrGroupActive(account);
 
+        SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
+                .findOneByIdAndSavingsAccountId(savingsTransactionId, savingsId);
+        if (holdTransaction == null) {
+            throw new SavingsAccountTransactionNotFoundException(savingsId, savingsTransactionId);
+        }
+        validateReleaseTransactionIsHold(holdTransaction, savingsTransactionId);
+
+        // Validate hold is not already released
+        if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.hold.already.released", "Hold has already been released",
+                    savingsTransactionId);
+        }
+
+        holdTransaction.updateReason(null);
+
+        final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
+                .validateReleaseAmountAndAssembleForm(holdTransaction);
+
+        BigDecimal releaseAmount = releaseTxn.getAmount();
+
         Money runningBalance = Money.of(account.getCurrency(), account.getAccountBalance());
-
         Money savingsOnHold = Money.of(account.getCurrency(), account.getSavingsHoldAmount());
+        runningBalance = runningBalance.minus(savingsOnHold).plus(releaseAmount);
+        releaseTxn.setRunningBalance(runningBalance);
 
-        runningBalance = runningBalance.minus(savingsOnHold);
+        this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(releaseTxn.getTransactionDate(), account);
 
-        runningBalance = runningBalance.plus(transaction.getAmount());
-        transaction.setRunningBalance(runningBalance);
+        // Release the hold (updates account's on-hold balance)
+        account.releaseOnHoldAmount(releaseAmount);
 
-        this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(transaction.getTransactionDate(), account);
-        account.releaseOnHoldAmount(transaction.getAmount());
+        // Save release transaction and link to hold
+        this.savingsAccountTransactionRepository.saveAndFlush(releaseTxn);
+        holdTransaction.updateReleaseId(releaseTxn.getId());
 
-        this.savingsAccountTransactionRepository.saveAndFlush(transaction);
-        holdTransaction.updateReleaseId(transaction.getId());
+        // V1: NO withdrawal transaction created, NO journal entries posted
+        // Funds are simply released back to available balance
+        // Client can call withdraw endpoint separately if needed
+
+        account.addTransaction(releaseTxn);
 
         if (backdatedTxnsAllowedTill) {
             this.savingsAccountTransactionRepository.saveAll(account.getSavingsAccountTransactionsWithPivotConfig());
-        } else {
-            account.addTransaction(transaction);
         }
 
-        this.savingAccountRepositoryWrapper.save(account);
+        this.savingAccountRepositoryWrapper.saveAndFlush(account);
 
-        return new CommandProcessingResultBuilder().withEntityId(transaction.getId()).withOfficeId(account.officeId())
-                .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).build();
+        // Build response with release transaction ID and hold transaction ID
+        Map<String, Object> changes = new HashMap<>();
+        changes.put("releaseTransactionId", releaseTxn.getId());
+        changes.put("holdTransactionId", holdTransaction.getId());
+        changes.put("preAuth", holdTransaction.isPreAuth());
+
+        return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
+                .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
+    }
+
+    /**
+     * V2 Release Amount with Withdrawal - performs release + withdraw in a single atomic transaction.
+     *
+     * This method: 1. Releases the hold (no journal entry for release) 2. Creates a withdrawal transaction (journal
+     * entries posted for withdrawal)
+     *
+     * Transaction linkage: - Hold -> Release: via release_id_of_hold_amount (existing) - Release -> Withdrawal: via
+     * related_transaction_id (new)
+     */
+    @Transactional
+    @Override
+    public CommandProcessingResult releaseAmountWithWithdrawal(final Long savingsId, final Long savingsTransactionId,
+            final JsonCommand command) {
+        context.authenticatedUser();
+
+        final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
+        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
+        checkClientOrGroupActive(account);
+
+        SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
+                .findOneByIdAndSavingsAccountId(savingsTransactionId, savingsId);
+        if (holdTransaction == null) {
+            throw new SavingsAccountTransactionNotFoundException(savingsId, savingsTransactionId);
+        }
+        validateReleaseTransactionIsHold(holdTransaction, savingsTransactionId);
+
+        // Validate hold is not already released
+        if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.hold.already.released", "Hold has already been released",
+                    savingsTransactionId);
+        }
+
+        holdTransaction.updateReason(null);
+
+        // Capture existing transaction IDs BEFORE creating new transactions for GL posting
+        final Set<Long> existingTransactionIds = new HashSet<>();
+        final Set<Long> existingReversedTransactionIds = new HashSet<>();
+        if (backdatedTxnsAllowedTill) {
+            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
+            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
+        } else {
+            existingTransactionIds.addAll(account.findExistingTransactionIds());
+            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
+        }
+
+        final SavingsAccountTransaction validatedReleaseTxn = this.savingsAccountTransactionDataValidator
+                .validateReleaseAmountAndAssembleForm(holdTransaction, command);
+        final SavingsAccountTransaction releaseTxn = SavingsAccountTransaction.releaseAmount(holdTransaction,
+                validatedReleaseTxn.getTransactionDate());
+        releaseTxn.updatePreAuth(holdTransaction.isPreAuth());
+
+        final BigDecimal holdAmount = holdTransaction.getAmount();
+        final BigDecimal settlementAmount = retrieveV2SettlementAmount(command, holdAmount);
+        final BigDecimal withdrawalFeeAmount = calculateV2WithdrawalFeeAmount(account, settlementAmount);
+        final boolean preAuth = holdTransaction.isPreAuth();
+        validateV2ReleaseAmount(account, holdAmount, settlementAmount, withdrawalFeeAmount, preAuth);
+        validateV2ReleaseWithdrawalAllowed(account, releaseTxn.getTransactionDate());
+
+        Money runningBalance = Money.of(account.getCurrency(), account.getAccountBalance());
+        Money savingsOnHold = Money.of(account.getCurrency(), account.getSavingsHoldAmount());
+        runningBalance = runningBalance.minus(savingsOnHold).plus(holdAmount);
+        releaseTxn.setRunningBalance(runningBalance);
+
+        this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(releaseTxn.getTransactionDate(), account);
+
+        // Release the hold
+        account.releaseOnHoldAmount(holdAmount);
+
+        // Save release transaction and link to hold
+        this.savingsAccountTransactionRepository.saveAndFlush(releaseTxn);
+        holdTransaction.updateReleaseId(releaseTxn.getId());
+
+        // V2: Create WITHDRAWAL transaction through the domain path so account-level withdrawal rules still apply.
+        final DateTimeFormatter fmt = v2ReleaseFormatter(command);
+        final Long relaxingDaysConfigForPivotDate = this.configurationDomainService.retrieveRelaxingDaysConfigForPivotDate();
+        final Map<String, Object> paymentDetailChanges = new LinkedHashMap<>();
+        final PaymentDetail paymentDetail = command == null ? null
+                : this.paymentDetailWritePlatformService.createAndPersistPaymentDetail(command, paymentDetailChanges);
+        final SavingsAccountTransactionDTO withdrawalTransactionDTO = new SavingsAccountTransactionDTO(fmt, releaseTxn.getTransactionDate(),
+                settlementAmount, paymentDetail, null, null);
+        UUID refNo = UUID.randomUUID();
+        SavingsAccountTransaction withdrawalTxn = account.withdraw(withdrawalTransactionDTO, true, backdatedTxnsAllowedTill,
+                relaxingDaysConfigForPivotDate, refNo.toString());
+
+        // Link withdrawal to release transaction
+        withdrawalTxn.setRelatedTransactionId(releaseTxn.getId());
+
+        // Set running balance for withdrawal (after deduction)
+        Money withdrawalRunningBalance = runningBalance.minus(settlementAmount);
+        withdrawalTxn.setRunningBalance(withdrawalRunningBalance);
+
+        if (!backdatedTxnsAllowedTill) {
+            account.getSummary().withdraw(settlementAmount);
+        }
+
+        this.savingsAccountTransactionRepository.saveAndFlush(withdrawalTxn);
+
+        // Add transactions to account
+        account.addTransaction(releaseTxn);
+        if (!preAuth) {
+            validateV2ReleaseBalance(account, settlementAmount, backdatedTxnsAllowedTill);
+        }
+
+        // Post journal entries for the withdrawal transaction
+        this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
+                backdatedTxnsAllowedTill);
+
+        if (backdatedTxnsAllowedTill) {
+            this.savingsAccountTransactionRepository.saveAll(account.getSavingsAccountTransactionsWithPivotConfig());
+        }
+
+        this.savingAccountRepositoryWrapper.saveAndFlush(account);
+
+        // Build response with all linked transaction IDs
+        Map<String, Object> changes = new HashMap<>();
+        changes.put("releaseTransactionId", releaseTxn.getId());
+        changes.put("withdrawalTransactionId", withdrawalTxn.getId());
+        changes.put("holdTransactionId", holdTransaction.getId());
+        changes.put("holdAmount", holdAmount);
+        changes.put("settlementAmount", settlementAmount);
+        changes.put("preAuth", holdTransaction.isPreAuth());
+
+        return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
+                .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
+    }
+
+    private BigDecimal retrieveV2SettlementAmount(final JsonCommand command, final BigDecimal holdAmount) {
+        if (command != null && command.hasParameter(transactionAmountParamName)) {
+            return command.bigDecimalValueOfParameterNamed(transactionAmountParamName);
+        }
+        return holdAmount;
+    }
+
+    private BigDecimal calculateV2WithdrawalFeeAmount(final SavingsAccount account, final BigDecimal settlementAmount) {
+        BigDecimal withdrawalFeeAmount = BigDecimal.ZERO;
+        for (SavingsAccountCharge charge : account.charges()) {
+            if (charge.isWithdrawalFee() && charge.isActive() && !charge.isEnableFreeWithdrawal() && !charge.isEnablePaymentType()) {
+                withdrawalFeeAmount = withdrawalFeeAmount.add(charge.calculateWithdralFeeAmount(settlementAmount),
+                        MoneyHelper.getMathContext());
+            }
+        }
+        return withdrawalFeeAmount;
+    }
+
+    private DateTimeFormatter v2ReleaseFormatter(final JsonCommand command) {
+        if (command != null && command.dateFormat() != null) {
+            final Locale locale = command.extractLocale();
+            return DateTimeFormatter.ofPattern(command.dateFormat()).withLocale(locale);
+        }
+        return DateTimeFormatter.ISO_LOCAL_DATE;
+    }
+
+    private void validateReleaseTransactionIsHold(final SavingsAccountTransaction transaction, final Long savingsTransactionId) {
+        if (!transaction.isAmountOnHold()) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.transaction.is.not.hold",
+                    "Transaction is not a hold transaction", savingsTransactionId);
+        }
+    }
+
+    private void validateV2ReleaseWithdrawalAllowed(final SavingsAccount account, final LocalDate transactionDate) {
+        account.validateForAccountBlock();
+        account.validateForDebitBlock();
+        if (!account.allowWithdrawal()) {
+            throw new DepositAccountTransactionNotAllowedException(account.getId(), "withdraw", account.depositAccountType());
+        }
+        if (!account.isTransactionAllowed(SavingsAccountTransactionType.WITHDRAWAL, transactionDate)) {
+            throw new GeneralPlatformDomainRuleException("error.msg.saving.account.transaction.withdrawal.not.allowed",
+                    "Withdrawal is not allowed for this savings account", account.getId());
+        }
+    }
+
+    private void validateV2ReleaseBalance(final SavingsAccount account, final BigDecimal settlementAmount,
+            final boolean backdatedTxnsAllowedTill) {
+        if (account.allowOverdraft() && account.getAccountBalance().compareTo(BigDecimal.ZERO) < 0) {
+            validateV2RemainingHoldCoverage(account, settlementAmount);
+            return;
+        }
+        List<DepositAccountOnHoldTransaction> depositAccountOnHoldTransactions = null;
+        if (account.getOnHoldFunds().compareTo(BigDecimal.ZERO) > 0) {
+            depositAccountOnHoldTransactions = this.depositAccountOnHoldTransactionRepository
+                    .findBySavingsAccountAndReversedFalseOrderByCreatedDateAsc(account);
+        }
+        account.validateAccountBalanceDoesNotBecomeNegative(settlementAmount, false, depositAccountOnHoldTransactions,
+                backdatedTxnsAllowedTill);
+    }
+
+    private void validateV2RemainingHoldCoverage(final SavingsAccount account, final BigDecimal settlementAmount) {
+        if (account.getSavingsHoldAmount().compareTo(BigDecimal.ZERO) > 0
+                && account.getWithdrawableBalance().compareTo(BigDecimal.ZERO) < 0) {
+            throw new InsufficientAccountBalanceException("transactionAmount", account.getAccountBalance(), null, settlementAmount);
+        }
+    }
+
+    private void validateV2ReleaseAmount(final SavingsAccount account, final BigDecimal holdAmount, final BigDecimal settlementAmount,
+            final BigDecimal withdrawalFeeAmount, final boolean preAuth) {
+        if (settlementAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.must.be.positive",
+                    "Release amount must be greater than zero");
+        }
+
+        final int amountComparison = settlementAmount.compareTo(holdAmount);
+        if (!preAuth && amountComparison != 0) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.must.equal.hold.amount",
+                    "Release amount must equal hold amount for a standard hold");
+        }
+
+        final BigDecimal totalDebitAmount = settlementAmount.add(withdrawalFeeAmount);
+        final BigDecimal excessAmount = totalDebitAmount.subtract(holdAmount);
+        if (preAuth && excessAmount.compareTo(BigDecimal.ZERO) > 0) {
+            final Long configuredPercentageValue = this.configurationDomainService.retrievePreAuthReleaseAllowedPercentage();
+            final BigDecimal configuredPercentage = BigDecimal.valueOf(configuredPercentageValue == null ? 0 : configuredPercentageValue);
+            final BigDecimal allowedExcessAmount = holdAmount.multiply(configuredPercentage).divide(BigDecimal.valueOf(100),
+                    MathContext.DECIMAL64);
+            if (excessAmount.compareTo(allowedExcessAmount) > 0) {
+                throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.exceeds.allowed.preauth.percentage",
+                        "Release amount exceeds the configured preAuth allowed percentage");
+            }
+        }
+
     }
 
     @Transactional

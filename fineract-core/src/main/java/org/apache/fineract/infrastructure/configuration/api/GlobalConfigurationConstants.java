@@ -46,6 +46,7 @@ public final class GlobalConfigurationConstants {
     public static final String SKIP_REPAYMENT_ON_FIRST_DAY_OF_MONTH = "skip-repayment-on-first-day-of-month";
     public static final String CHANGE_EMI_IF_REPAYMENT_DATE_SAME_AS_DISBURSEMENT_DATE = "change-emi-if-repaymentdate-same-as-disbursementdate";
     public static final String DAILY_TPT_LIMIT = "daily-tpt-limit";
+    public static final String PRE_AUTH_RELEASE_ALLOWED_PERCENTAGE = "preauth-release-allowed-percentage";
     public static final String ENABLE_ADDRESS = "enable-address";
     public static final String SUB_RATES = "sub-rates";
     public static final String LOAN_RESCHEDULE_IS_FIRST_PAYDAY_ALLOWED_ON_HOLIDAY = "loan-reschedule-is-first-payday-allowed-on-holiday";

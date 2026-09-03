@@ -113,6 +113,8 @@ public interface SavingsAccountWritePlatformService {
 
     CommandProcessingResult releaseAmount(Long savingsId, Long transactionId);
 
+    CommandProcessingResult releaseAmountWithWithdrawal(Long savingsId, Long transactionId, JsonCommand command);
+
     CommandProcessingResult gsimActivate(Long gsimId, JsonCommand command);
 
     CommandProcessingResult gsimDeposit(Long gsimId, JsonCommand command);

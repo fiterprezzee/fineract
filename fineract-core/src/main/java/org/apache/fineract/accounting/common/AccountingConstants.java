@@ -271,7 +271,8 @@ public final class AccountingConstants {
         OVERDRAFT_PORTFOLIO_CONTROL(11), //
         INCOME_FROM_INTEREST(12), //
         LOSSES_WRITTEN_OFF(13), //
-        ESCHEAT_LIABILITY(14); //
+        ESCHEAT_LIABILITY(14), //
+        FUNDS_ON_HOLD(19); //
 
         private final Integer value;
 
@@ -320,7 +321,8 @@ public final class AccountingConstants {
         FEES_RECEIVABLE(15), //
         PENALTIES_RECEIVABLE(16), //
         INTEREST_PAYABLE(17), //
-        INTEREST_RECEIVABLE(18);
+        INTEREST_RECEIVABLE(18), //
+        FUNDS_ON_HOLD(19);
 
         private final Integer value;
 
@@ -372,6 +374,7 @@ public final class AccountingConstants {
         OVERDRAFT_PORTFOLIO_CONTROL("overdraftPortfolioControlId"), //
         INCOME_FROM_INTEREST("incomeFromInterestId"), //
         LOSSES_WRITTEN_OFF("writeOffAccountId"), //
+        FUNDS_ON_HOLD("fundsOnHoldAccountId"), //
         ESCHEAT_LIABILITY("escheatLiabilityId"), //
         PENALTIES_RECEIVABLE("penaltiesReceivableAccountId"), //
         INTEREST_RECEIVABLE("interestReceivableAccountId"), //
@@ -410,6 +413,7 @@ public final class AccountingConstants {
         OVERDRAFT_PORTFOLIO_CONTROL("overdraftPortfolioControl"), //
         INCOME_FROM_INTEREST("incomeFromInterest"), //
         LOSSES_WRITTEN_OFF("writeOffAccount"), //
+        FUNDS_ON_HOLD("fundsOnHoldAccount"), //
         ESCHEAT_LIABILITY("escheatLiabilityAccount"), //
         FEES_RECEIVABLE("feeReceivableAccount"), //
         PENALTIES_RECEIVABLE("penaltyReceivableAccount"), //

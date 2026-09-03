@@ -94,6 +94,8 @@ public interface ConfigurationDomainService {
 
     Long getDailyTPTLimit();
 
+    Long retrievePreAuthReleaseAllowedPercentage();
+
     void removeGlobalConfigurationPropertyDataFromCache(String propertyName);
 
     boolean isSMSOTPDeliveryEnabled();

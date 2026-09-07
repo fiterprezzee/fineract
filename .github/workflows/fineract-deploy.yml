@@ -338,7 +338,7 @@ jobs:
           echo "::warning::restored the previous desired image reference in $SSM_PATH; reconciling ECS"
 
       - name: Clear recovery AWS credentials
-        if: always() && !cancelled() && steps.restore_ssm.outcome == 'success'
+        if: always() && !cancelled() && steps.assume_recovery_ssm.outcome == 'success'
         run: |
           set -euo pipefail
           for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_CREDENTIAL_EXPIRATION; do

@@ -218,6 +218,11 @@ jobs:
             exit 1
           fi
 
+          # Do not retain write-capable SSM credentials beyond this read/validation step.
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_CREDENTIAL_EXPIRATION; do
+            echo "$name=" >> "$GITHUB_ENV"
+          done
+
       - name: Assume artifact ECR role to resolve the previous image
         if: inputs.operation == 'apply'
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df

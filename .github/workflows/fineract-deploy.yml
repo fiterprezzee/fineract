@@ -180,7 +180,73 @@ jobs:
           echo "IMAGE_DIGEST=$DIGEST" >> "$GITHUB_ENV"
           echo "DIGEST_IMAGE=$DIGEST_IMAGE" >> "$GITHUB_ENV"
 
-      - name: Assume the SSM writer role
+      - name: Assume the SSM reader role
+        if: inputs.operation == 'apply'
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.SSM_WRITER_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read and validate the previous image reference
+        id: previous_image
+        if: inputs.operation == 'apply'
+        run: |
+          set -euo pipefail
+          PREVIOUS_IMAGE="$(aws ssm get-parameter \
+            --region "$AWS_REGION" \
+            --name "$SSM_PATH" \
+            --query 'Parameter.Value' \
+            --output text)"
+
+          TRUSTED_REPOSITORY="${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
+          if [[ "$PREVIOUS_IMAGE" == "$TRUSTED_REPOSITORY@sha256:"* ]]; then
+            PREVIOUS_DIGEST="${PREVIOUS_IMAGE#"$TRUSTED_REPOSITORY@"}"
+            [[ "$PREVIOUS_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::invalid digest in $SSM_PATH"
+              exit 1
+            }
+            echo "digest=$PREVIOUS_DIGEST" >> "$GITHUB_OUTPUT"
+          elif [[ "$PREVIOUS_IMAGE" == "$TRUSTED_REPOSITORY:"* ]]; then
+            PREVIOUS_TAG="${PREVIOUS_IMAGE#"$TRUSTED_REPOSITORY:"}"
+            [[ "$PREVIOUS_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || {
+              echo "::error::invalid image tag in $SSM_PATH"
+              exit 1
+            }
+            echo "tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::refusing to replace invalid SSM image reference in $SSM_PATH"
+            exit 1
+          fi
+
+      - name: Assume artifact ECR role to resolve the previous image
+        if: inputs.operation == 'apply'
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve the previous image to an immutable digest
+        if: inputs.operation == 'apply'
+        run: |
+          set -euo pipefail
+          PREVIOUS_DIGEST="${{ steps.previous_image.outputs.digest }}"
+          if [[ -z "$PREVIOUS_DIGEST" ]]; then
+            PREVIOUS_TAG="${{ steps.previous_image.outputs.tag }}"
+            PREVIOUS_DIGEST="$(aws ecr describe-images \
+              --region "$AWS_REGION" \
+              --registry-id "$ARTIFACT_ACCOUNT_ID" \
+              --repository-name "$ECR_REPO" \
+              --image-ids "imageTag=$PREVIOUS_TAG" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)"
+          fi
+          [[ "$PREVIOUS_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::could not resolve the previous image to a valid digest"
+            exit 1
+          }
+          echo "PREVIOUS_IMAGE=${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}@${PREVIOUS_DIGEST}" >> "$GITHUB_ENV"
+
+      - name: Re-assume the SSM writer role
         if: inputs.operation == 'apply'
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
@@ -192,24 +258,6 @@ jobs:
         if: inputs.operation == 'apply'
         run: |
           set -euo pipefail
-          # Terraform must read the new value to render the new task definition.
-          # Retain the current value so it can be restored if the deploy or ECS
-          # stability check fails before the image is confirmed live.
-          PREVIOUS_IMAGE="$(aws ssm get-parameter \
-            --region "$AWS_REGION" \
-            --name "$SSM_PATH" \
-            --query 'Parameter.Value' \
-            --output text)"
-          IMAGE_REFERENCE_PATTERN='^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9._/-]+(@sha256:[0-9a-f]{64}|:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})$'
-          if [[ ! "$PREVIOUS_IMAGE" =~ $IMAGE_REFERENCE_PATTERN ]]; then
-            echo "::error::refusing to replace invalid SSM image reference in $SSM_PATH"
-            exit 1
-          fi
-          {
-            echo "PREVIOUS_IMAGE<<EOF"
-            echo "$PREVIOUS_IMAGE"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
 
           # Write the digest-pinned URI — not the mutable tag — so Terraform picks up
           # exactly the image we resolved and verified above.
@@ -270,8 +318,9 @@ jobs:
         if: always() && steps.assume_recovery_ssm.outcome == 'success'
         run: |
           set -euo pipefail
-          IMAGE_REFERENCE_PATTERN='^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9._/-]+(@sha256:[0-9a-f]{64}|:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})$'
-          if [[ ! "$PREVIOUS_IMAGE" =~ $IMAGE_REFERENCE_PATTERN ]]; then
+          TRUSTED_DIGEST_PREFIX="${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}@sha256:"
+          PREVIOUS_DIGEST="${PREVIOUS_IMAGE#"$TRUSTED_DIGEST_PREFIX"}"
+          if [[ "$PREVIOUS_IMAGE" != "$TRUSTED_DIGEST_PREFIX"* || ! "$PREVIOUS_DIGEST" =~ ^[0-9a-f]{64}$ ]]; then
             echo "::error::refusing to restore invalid image reference to $SSM_PATH"
             exit 1
           fi

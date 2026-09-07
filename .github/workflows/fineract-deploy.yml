@@ -307,7 +307,7 @@ jobs:
 
       - name: Assume SSM writer role for failure recovery
         id: assume_recovery_ssm
-        if: always() && inputs.operation == 'apply' && steps.pin_image.outcome == 'success' && (steps.run_terraform.outcome != 'success' || steps.wait_for_ecs.outcome != 'success')
+        if: always() && !cancelled() && inputs.operation == 'apply' && steps.pin_image.outcome == 'success' && (steps.run_terraform.outcome != 'success' || steps.wait_for_ecs.outcome != 'success')
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           role-to-assume: ${{ env.SSM_WRITER_ROLE }}
@@ -315,7 +315,7 @@ jobs:
 
       - name: Restore previous image reference in SSM
         id: restore_ssm
-        if: always() && steps.assume_recovery_ssm.outcome == 'success'
+        if: always() && !cancelled() && steps.assume_recovery_ssm.outcome == 'success'
         run: |
           set -euo pipefail
           TRUSTED_DIGEST_PREFIX="${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}@sha256:"
@@ -333,7 +333,7 @@ jobs:
           echo "::warning::restored the previous desired image reference in $SSM_PATH; reconciling ECS"
 
       - name: Clear recovery AWS credentials
-        if: always() && steps.restore_ssm.outcome == 'success'
+        if: always() && !cancelled() && steps.restore_ssm.outcome == 'success'
         run: |
           set -euo pipefail
           for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_CREDENTIAL_EXPIRATION; do
@@ -342,20 +342,20 @@ jobs:
 
       - name: Reapply previous desired image through Atmos
         id: rollback_terraform
-        if: always() && steps.restore_ssm.outcome == 'success'
+        if: always() && !cancelled() && steps.restore_ssm.outcome == 'success'
         working-directory: infra
         run: atmos terraform deploy "$COMPONENT" --stack "$STACK" --identity deploy
 
       - name: Assume deploy role after recovery
         id: assume_recovery_deploy
-        if: always() && steps.rollback_terraform.outcome == 'success'
+        if: always() && !cancelled() && steps.rollback_terraform.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           role-to-assume: ${{ env.DEPLOY_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Wait for recovered ECS deployment to stabilise
-        if: always() && steps.assume_recovery_deploy.outcome == 'success'
+        if: always() && !cancelled() && steps.assume_recovery_deploy.outcome == 'success'
         run: |
           set -euo pipefail
           aws ecs wait services-stable \

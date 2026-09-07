@@ -1,4 +1,4 @@
-name: Terraform Deploy
+name: Fineract Terraform Deploy
 run-name: Terraform ${{ inputs.operation }} Fineract in ${{ inputs.environment }}
 
 # OIDC-direct Terraform deploy for Fineract services.

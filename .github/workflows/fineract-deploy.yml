@@ -200,11 +200,16 @@ jobs:
             --name "$SSM_PATH" \
             --query 'Parameter.Value' \
             --output text)"
-          if [[ -z "$PREVIOUS_IMAGE" || "$PREVIOUS_IMAGE" == "None" ]]; then
-            echo "::error::refusing to replace missing SSM image parameter $SSM_PATH"
+          IMAGE_REFERENCE_PATTERN='^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9._/-]+(@sha256:[0-9a-f]{64}|:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})$'
+          if [[ ! "$PREVIOUS_IMAGE" =~ $IMAGE_REFERENCE_PATTERN ]]; then
+            echo "::error::refusing to replace invalid SSM image reference in $SSM_PATH"
             exit 1
           fi
-          echo "PREVIOUS_IMAGE=$PREVIOUS_IMAGE" >> "$GITHUB_ENV"
+          {
+            echo "PREVIOUS_IMAGE<<EOF"
+            echo "$PREVIOUS_IMAGE"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
           # Write the digest-pinned URI — not the mutable tag — so Terraform picks up
           # exactly the image we resolved and verified above.
@@ -253,23 +258,62 @@ jobs:
           echo "ECS deployment stable."
 
       - name: Assume SSM writer role for failure recovery
-        if: failure() && inputs.operation == 'apply' && steps.pin_image.outcome == 'success' && (steps.run_terraform.outcome == 'failure' || steps.wait_for_ecs.outcome == 'failure')
+        id: assume_recovery_ssm
+        if: always() && inputs.operation == 'apply' && steps.pin_image.outcome == 'success' && (steps.run_terraform.outcome != 'success' || steps.wait_for_ecs.outcome != 'success')
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           role-to-assume: ${{ env.SSM_WRITER_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Restore previous image digest after failed deploy
-        if: failure() && inputs.operation == 'apply' && steps.pin_image.outcome == 'success' && (steps.run_terraform.outcome == 'failure' || steps.wait_for_ecs.outcome == 'failure')
+      - name: Restore previous image reference in SSM
+        id: restore_ssm
+        if: always() && steps.assume_recovery_ssm.outcome == 'success'
         run: |
           set -euo pipefail
+          IMAGE_REFERENCE_PATTERN='^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9._/-]+(@sha256:[0-9a-f]{64}|:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})$'
+          if [[ ! "$PREVIOUS_IMAGE" =~ $IMAGE_REFERENCE_PATTERN ]]; then
+            echo "::error::refusing to restore invalid image reference to $SSM_PATH"
+            exit 1
+          fi
           aws ssm put-parameter \
             --region "$AWS_REGION" \
             --type String \
             --overwrite \
             --name "$SSM_PATH" \
             --value "$PREVIOUS_IMAGE"
-          echo "::warning::restored $SSM_PATH to its pre-deploy image digest after deployment failure"
+          echo "::warning::restored the previous desired image reference in $SSM_PATH; reconciling ECS"
+
+      - name: Clear recovery AWS credentials
+        if: always() && steps.restore_ssm.outcome == 'success'
+        run: |
+          set -euo pipefail
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_CREDENTIAL_EXPIRATION; do
+            echo "$name=" >> "$GITHUB_ENV"
+          done
+
+      - name: Reapply previous desired image through Atmos
+        id: rollback_terraform
+        if: always() && steps.restore_ssm.outcome == 'success'
+        working-directory: infra
+        run: atmos terraform deploy "$COMPONENT" --stack "$STACK" --identity deploy
+
+      - name: Assume deploy role after recovery
+        id: assume_recovery_deploy
+        if: always() && steps.rollback_terraform.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Wait for recovered ECS deployment to stabilise
+        if: always() && steps.assume_recovery_deploy.outcome == 'success'
+        run: |
+          set -euo pipefail
+          aws ecs wait services-stable \
+            --region "$AWS_REGION" \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
+          echo "Previous desired image has been restored and ECS is stable."
 
       - name: Promote the live image tag
         if: inputs.operation == 'apply' && matrix.promote_tag == true
@@ -290,7 +334,7 @@ jobs:
             --query 'images[0].imageManifest' \
             --output text)"
           if [[ -z "$manifest" || "$manifest" == "None" ]]; then
-            echo "::error::could not retrieve manifest for $ECR_REPO:$VERSION"
+            echo "::error::could not retrieve manifest for $ECR_REPO@$IMAGE_DIGEST"
             exit 1
           fi
           err=$(aws ecr put-image \

@@ -64,14 +64,17 @@ jobs:
         include:
           - service: fineract-read
             ecr_repo: prezzeepay/fineract
+            artifact_ecr_role: pp-core-euc1-artifacts-fineract-gha
             version: ${{ inputs.fineract_version }}
             promote_tag: false   # fineract-write handles current-* promotion for the shared repo
           - service: fineract-write
             ecr_repo: prezzeepay/fineract
+            artifact_ecr_role: pp-core-euc1-artifacts-fineract-gha
             version: ${{ inputs.fineract_version }}
             promote_tag: true
           - service: fineract-webapp
             ecr_repo: prezzeepay/fineract-webapp
+            artifact_ecr_role: pp-core-euc1-artifacts-fineract-webapp-gha
             version: ${{ inputs.fineract_webapp_version }}
             promote_tag: true
     container:
@@ -110,7 +113,7 @@ jobs:
             echo "STACK=plat-euc1-$ENV"
             echo "SSM_PATH=/plat/euc1/$ENV/ecs-service/$SERVICE/image"
             echo "SSM_WRITER_ROLE=arn:aws:iam::${SSM_ACCOUNT_ID}:role/pp-core-euc1-root-ssm-$SERVICE-$ENV-gha"
-            echo "ARTIFACT_ECR_ROLE=arn:aws:iam::${ARTIFACT_ACCOUNT_ID}:role/pp-core-euc1-artifacts-fineract-gha"
+            echo "ARTIFACT_ECR_ROLE=arn:aws:iam::${ARTIFACT_ACCOUNT_ID}:role/${{ matrix.artifact_ecr_role }}"
             echo "DEPLOY_ROLE=arn:aws:iam::${PLAT_ACCOUNT_ID}:role/pp-plat-euc1-$ENV-$SERVICE-deploy"
             echo "ECS_CLUSTER=pp-plat-euc1-$ENV-fineract-cluster"
             echo "ECS_SERVICE=pp-plat-euc1-$ENV-$SERVICE"

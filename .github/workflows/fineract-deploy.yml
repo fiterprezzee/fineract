@@ -160,9 +160,8 @@ jobs:
       - name: Resolve target image digest
         run: |
           set -euo pipefail
-          # Resolve the mutable tag to an immutable digest and store the digest-pinned
-          # image URI in SSM. This prevents a tag re-push between resolve and ECS pull
-          # from substituting a different image than the one we verified here.
+          # Resolve the mutable tag to an immutable digest. An apply stores the
+          # digest-pinned image URI in SSM later, after validating the rollback image.
           DIGEST=$(aws ecr describe-images \
             --region "$AWS_REGION" \
             --registry-id "$ARTIFACT_ACCOUNT_ID" \
@@ -224,14 +223,15 @@ jobs:
           done
 
       - name: Assume artifact ECR role to resolve the previous image
-        if: inputs.operation == 'apply'
+        if: success() && inputs.operation == 'apply' && steps.previous_image.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           role-to-assume: ${{ env.ARTIFACT_ECR_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Resolve the previous image to an immutable digest
-        if: inputs.operation == 'apply'
+        id: resolve_previous_image
+        if: success() && inputs.operation == 'apply' && steps.previous_image.outcome == 'success'
         run: |
           set -euo pipefail
           PREVIOUS_DIGEST="${{ steps.previous_image.outputs.digest }}"
@@ -252,7 +252,7 @@ jobs:
           echo "PREVIOUS_IMAGE=${ARTIFACT_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}@${PREVIOUS_DIGEST}" >> "$GITHUB_ENV"
 
       - name: Re-assume the SSM writer role
-        if: inputs.operation == 'apply'
+        if: success() && inputs.operation == 'apply' && steps.resolve_previous_image.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           role-to-assume: ${{ env.SSM_WRITER_ROLE }}
@@ -260,7 +260,7 @@ jobs:
 
       - name: Pin image digest in core-root SSM
         id: pin_image
-        if: inputs.operation == 'apply'
+        if: success() && inputs.operation == 'apply' && steps.resolve_previous_image.outcome == 'success'
         run: |
           set -euo pipefail
 

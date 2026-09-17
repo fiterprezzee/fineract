@@ -33,4 +33,8 @@ public interface CommandSourceRepository extends JpaRepository<CommandSource, Lo
     @Query("delete from CommandSource c where c.status = :status and c.madeOnDate is not null and c.madeOnDate <= :dateForPurgeCriteria")
     void deleteOlderEventsWithStatus(@Param("status") Integer status, @Param("dateForPurgeCriteria") OffsetDateTime dateForPurgeCriteria);
 
+    @Modifying
+    @Query("update CommandSource c set c.resultStatusCode = :statusCode where c.id = :id")
+    void updateResultStatusCodeById(@Param("id") Long id, @Param("statusCode") Integer statusCode);
+
 }

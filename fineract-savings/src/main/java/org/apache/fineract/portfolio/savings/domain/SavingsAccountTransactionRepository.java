@@ -75,4 +75,10 @@ public interface SavingsAccountTransactionRepository
     @Query("select sat from SavingsAccountTransaction sat where sat.savingsAccount.id = :savingsId and sat.dateOf <= :transactionDate and sat.reversed=false")
     List<SavingsAccountTransaction> findBySavingsAccountIdAndLessThanDateOfAndReversedIsFalse(@Param("savingsId") Long savingsId,
             @Param("transactionDate") LocalDate transactionDate, Pageable pageable);
+
+    @Query("select sat from SavingsAccountTransaction sat where sat.savingsAccount.id = :savingsId and sat.reversed = false and sat.reversalTransaction = false order by sat.dateOf desc, sat.createdDate desc, sat.id desc")
+    List<SavingsAccountTransaction> findLastNonReversedTransactions(@Param("savingsId") Long savingsId, Pageable pageable);
+
+    @Query("select sat.dateOf from SavingsAccountTransaction sat where sat.savingsAccount.id = :savingsId order by sat.dateOf desc, sat.createdDate desc, sat.id desc")
+    List<LocalDate> findLastTransactionDate(@Param("savingsId") Long savingsId, Pageable pageable);
 }

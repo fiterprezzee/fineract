@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.core.filters;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.ws.rs.core.UriInfo;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -42,10 +43,11 @@ public class IdempotencyStoreBatchFilter implements BatchFilter {
         extractIdempotentKeyFromBatchRequest(batchRequest).ifPresent(idempotentKey -> fineractRequestContextHolder
                 .setAttribute(SynchronousCommandProcessingService.IDEMPOTENCY_KEY_ATTRIBUTE, idempotentKey));
         BatchResponse result = chain.serviceCall(batchRequest, uriInfo);
+        // Body + hardcoded 200 are already persisted upstream; only patch the row when wire status differs.
         Optional<Long> commandId = helper.getCommandId(null);
-        boolean isSuccessWithoutStored = commandId.isPresent() && helper.isStoreIdempotencyKey(null);
-        if (isSuccessWithoutStored) {
-            helper.storeCommandResult(result.getStatusCode(), result.getBody(), commandId.get());
+        Integer statusCode = result.getStatusCode();
+        if (commandId.isPresent() && helper.isStoreIdempotencyKey(null) && statusCode != null && statusCode != HttpServletResponse.SC_OK) {
+            helper.updateResultStatusCode(statusCode, commandId.get());
         }
         return result;
     }

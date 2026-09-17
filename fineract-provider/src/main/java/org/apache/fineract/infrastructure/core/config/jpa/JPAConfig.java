@@ -92,6 +92,9 @@ public class JPAConfig extends JpaBaseConfiguration {
         vendorProperties.put(PersistenceUnitProperties.WEAVING, "static");
         vendorProperties.put(PersistenceUnitProperties.PERSISTENCE_CONTEXT_CLOSE_ON_COMMIT, "true");
         vendorProperties.put(PersistenceUnitProperties.CACHE_SHARED_DEFAULT, "false");
+        vendorProperties.put("jakarta.persistence.validation.mode", "NONE");
+        vendorProperties.put(PersistenceUnitProperties.BATCH_WRITING, "JDBC");
+        vendorProperties.put(PersistenceUnitProperties.BATCH_WRITING_SIZE, "100");
         emFactoryCustomizers.forEach(c -> vendorProperties.putAll(c.additionalVendorProperties()));
         return vendorProperties;
     }

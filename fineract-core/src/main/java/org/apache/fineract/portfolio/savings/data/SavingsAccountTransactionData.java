@@ -81,6 +81,13 @@ public class SavingsAccountTransactionData implements Serializable {
     private final String reasonForBlock;
     private final Set<SavingsAccountChargesPaidByData> chargesPaidByData = new HashSet<>();
 
+    // V2 Enhancement: Link release to withdrawal
+    private Long relatedTransactionId;
+
+    public void setRelatedTransactionId(Long relatedTransactionId) {
+        this.relatedTransactionId = relatedTransactionId;
+    }
+
     // templates
     private final Collection<PaymentTypeData> paymentTypeOptions;
 

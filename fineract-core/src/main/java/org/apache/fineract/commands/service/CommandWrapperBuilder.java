@@ -3362,6 +3362,11 @@ public class CommandWrapperBuilder {
         return this;
     }
 
+    /**
+     * V2 Release Amount with Withdrawal - performs release + withdraw in a single atomic transaction. This command
+     * triggers the combined operation where: 1. Hold is released (no journal entry) 2. Withdrawal is created (journal
+     * entries posted) Transaction IDs are linked: holdId → releaseId → withdrawalId
+     */
     public CommandWrapperBuilder releaseAmountWithWithdrawal(final Long accountId, final Long transactionId) {
         this.actionName = "RELEASEAMOUNTWITHWITHDRAWAL";
         this.entityName = "SAVINGSACCOUNT";

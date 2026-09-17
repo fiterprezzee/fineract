@@ -2543,6 +2543,9 @@ public class BatchApiTest extends BaseLoanIntegrationTest {
         assertEquals(409, errorResponse.getHttpStatusCode());
     }
 
+    /**
+     * Test for verifying running balance calculation after batch operations with V1 release.
+     */
     @Test
     public void verifyCalculatingRunningBalanceAfterBatchWithReleaseAmount() {
         final SavingsProductHelper savingsProductHelper = new SavingsProductHelper();

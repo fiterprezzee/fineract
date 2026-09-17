@@ -58,6 +58,7 @@ modernizer {
     ]
 }
 
+processResources.dependsOn compileJava
 // If we are running Gradle within Eclipse to enhance classes with OpenJPA,
 // set the classes directory to point to Eclipse's default build directory
 if (project.hasProperty('env') && project.getProperty('env') == 'eclipse') {

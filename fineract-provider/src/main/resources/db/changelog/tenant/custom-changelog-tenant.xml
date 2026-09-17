@@ -26,6 +26,7 @@
     <!-- CUSTOM CHANGESETS - KEPT SEPARATE FROM COMMUNITY CHANGESETS -->
     <!-- This master file includes all custom database changes to avoid conflicts with community upgrades -->
     <!-- When community versions are updated, custom changes remain isolated and can be easily merged -->
+    <include file="custom/0003_hold_release_v2_cleanup.xml" relativeToChangelogFile="true"/>
     <include file="custom/0004_hold_pre_authorization.xml" relativeToChangelogFile="true"/>
     <include file="custom/0005_preauth_release_allowed_percentage_configuration.xml" relativeToChangelogFile="true"/>
     <include file="custom/0006_related_transaction_id_savings_account_transaction.xml" relativeToChangelogFile="true"/>

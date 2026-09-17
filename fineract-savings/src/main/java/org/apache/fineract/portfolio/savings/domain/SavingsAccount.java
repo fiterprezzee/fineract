@@ -1323,6 +1323,422 @@ public class SavingsAccount extends AbstractAuditableWithUTCDateTimeCustom<Long>
         return transaction;
     }
 
+    // ---- Fast-path methods (avoid loading the full transactions collection) ----
+
+    /**
+     * Returns true when the full interest recalculation can be safely skipped for a same-day, non-backdated transaction
+     * on an account with no interest configuration.
+     */
+    public boolean canSkipInterestRecalculation(final LocalDate transactionDate, final boolean backdatedTxnsAllowedTill) {
+        if (backdatedTxnsAllowedTill) {
+            return false;
+        }
+        if (hasInterestCalculation() || hasOverdraftInterestCalculation()) {
+            return false;
+        }
+        return transactionDate.equals(DateUtils.getBusinessLocalDate());
+    }
+
+    /**
+     * Returns true when an interest-bearing account can use incremental recalculation instead of full recalculation.
+     * This applies to same-day, non-backdated transactions.
+     * <p>
+     * For same-day transactions, isBeforeLastPostingPeriod is always false (interest is never posted in the future), so
+     * we can skip that O(N) check entirely.
+     */
+    public boolean canUseIncrementalRecalculation(final LocalDate transactionDate, final boolean backdatedTxnsAllowedTill) {
+        if (backdatedTxnsAllowedTill) {
+            return false;
+        }
+        return transactionDate.equals(DateUtils.getBusinessLocalDate());
+    }
+
+    /**
+     * Creates a deposit transaction without adding it to the managed transactions collection. Used by the fast-path to
+     * avoid triggering lazy loading of the collection. The transaction is saved separately via the repository.
+     */
+    public SavingsAccountTransaction depositWithoutCollectionAdd(final SavingsAccountTransactionDTO transactionDTO,
+            final SavingsAccountTransactionType savingsAccountTransactionType, final Long relaxingDaysConfigForPivotDate,
+            final String refNo) {
+        final String resourceTypeName = depositAccountType().resourceName();
+        if (isNotActive()) {
+            final String defaultUserMessage = "Transaction is not allowed. Account is not active.";
+            final ApiParameterError error = ApiParameterError.parameterError(
+                    "error.msg." + resourceTypeName + ".transaction.account.is.not.active", defaultUserMessage, "transactionDate",
+                    transactionDTO.getTransactionDate().format(transactionDTO.getFormatter()));
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+            dataValidationErrors.add(error);
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+
+        if (DateUtils.isDateInTheFuture(transactionDTO.getTransactionDate())) {
+            final String defaultUserMessage = "Transaction date cannot be in the future.";
+            final ApiParameterError error = ApiParameterError.parameterError("error.msg." + resourceTypeName + ".transaction.in.the.future",
+                    defaultUserMessage, "transactionDate", transactionDTO.getTransactionDate().format(transactionDTO.getFormatter()));
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+            dataValidationErrors.add(error);
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+
+        if (DateUtils.isBefore(transactionDTO.getTransactionDate(), getActivationDate())) {
+            final Object[] defaultUserArgs = Arrays.asList(transactionDTO.getTransactionDate().format(transactionDTO.getFormatter()),
+                    getActivationDate().format(transactionDTO.getFormatter())).toArray();
+            final String defaultUserMessage = "Transaction date cannot be before accounts activation date.";
+            final ApiParameterError error = ApiParameterError.parameterError(
+                    "error.msg." + resourceTypeName + ".transaction.before.activation.date", defaultUserMessage, "transactionDate",
+                    defaultUserArgs);
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+            dataValidationErrors.add(error);
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+        validatePivotDateTransaction(transactionDTO.getTransactionDate(), false, relaxingDaysConfigForPivotDate, resourceTypeName);
+        validateActivityNotBeforeClientOrGroupTransferDate(SavingsEvent.SAVINGS_DEPOSIT, transactionDTO.getTransactionDate());
+
+        final Money amount = Money.of(this.currency, transactionDTO.getTransactionAmount());
+        final SavingsAccountTransaction transaction = SavingsAccountTransaction.deposit(this, office(), transactionDTO.getPaymentDetail(),
+                transactionDTO.getTransactionDate(), amount, savingsAccountTransactionType, refNo);
+
+        // Do NOT add to this.transactions — avoids triggering lazy loading
+
+        if (this.sub_status.equals(SavingsAccountSubStatusEnum.INACTIVE.getValue())
+                || this.sub_status.equals(SavingsAccountSubStatusEnum.DORMANT.getValue())) {
+            this.sub_status = SavingsAccountSubStatusEnum.NONE.getValue();
+        }
+
+        // Incrementally update summary (same logic as updateSummaryWithPivotConfig for deposits)
+        this.summary.updateSummaryWithPivotConfig(this.currency, this.savingsAccountTransactionSummaryWrapper, transaction,
+                this.savingsAccountTransactions);
+
+        return transaction;
+    }
+
+    /**
+     * Creates a withdrawal transaction without adding it to the managed transactions collection. Used by the fast-path
+     * to avoid triggering lazy loading of the collection. The transaction is saved separately via the repository.
+     * <p>
+     * NOTE: This method does NOT process withdrawal fees. The caller must ensure that applyWithdrawFee is false when
+     * using this method (or handle fees separately).
+     */
+    public SavingsAccountTransaction withdrawWithoutCollectionAdd(final SavingsAccountTransactionDTO transactionDTO,
+            final Long relaxingDaysConfigForPivotDate, final String refNo) {
+        if (!isTransactionsAllowed()) {
+            final String defaultUserMessage = "Transaction is not allowed. Account is not active.";
+            final ApiParameterError error = ApiParameterError.parameterError("error.msg.savingsaccount.transaction.account.is.not.active",
+                    defaultUserMessage, "transactionDate", transactionDTO.getTransactionDate().format(transactionDTO.getFormatter()));
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+            dataValidationErrors.add(error);
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+
+        if (DateUtils.isDateInTheFuture(transactionDTO.getTransactionDate())) {
+            final String defaultUserMessage = "Transaction date cannot be in the future.";
+            final ApiParameterError error = ApiParameterError.parameterError("error.msg.savingsaccount.transaction.in.the.future",
+                    defaultUserMessage, "transactionDate", transactionDTO.getTransactionDate().format(transactionDTO.getFormatter()));
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+            dataValidationErrors.add(error);
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+
+        if (DateUtils.isBefore(transactionDTO.getTransactionDate(), getActivationDate())) {
+            final Object[] defaultUserArgs = Arrays.asList(transactionDTO.getTransactionDate().format(transactionDTO.getFormatter()),
+                    getActivationDate().format(transactionDTO.getFormatter())).toArray();
+            final String defaultUserMessage = "Transaction date cannot be before accounts activation date.";
+            final ApiParameterError error = ApiParameterError.parameterError("error.msg.savingsaccount.transaction.before.activation.date",
+                    defaultUserMessage, "transactionDate", defaultUserArgs);
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+            dataValidationErrors.add(error);
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+
+        if (isAccountLocked(transactionDTO.getTransactionDate())) {
+            final String defaultUserMessage = "Withdrawal is not allowed. No withdrawals are allowed until after "
+                    + getLockedInUntilDate().format(transactionDTO.getFormatter());
+            final ApiParameterError error = ApiParameterError.parameterError(
+                    "error.msg.savingsaccount.transaction.withdrawals.blocked.during.lockin.period", defaultUserMessage, "transactionDate",
+                    transactionDTO.getTransactionDate().format(transactionDTO.getFormatter()),
+                    getLockedInUntilDate().format(transactionDTO.getFormatter()));
+            final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+            dataValidationErrors.add(error);
+            throw new PlatformApiDataValidationException(dataValidationErrors);
+        }
+        validatePivotDateTransaction(transactionDTO.getTransactionDate(), false, relaxingDaysConfigForPivotDate, "savingsaccount");
+        validateActivityNotBeforeClientOrGroupTransferDate(SavingsEvent.SAVINGS_WITHDRAWAL, transactionDTO.getTransactionDate());
+
+        // No withdrawal fee processing — caller must ensure applyWithdrawFee is false
+
+        final Money transactionAmountMoney = Money.of(this.currency, transactionDTO.getTransactionAmount());
+        final SavingsAccountTransaction transaction = SavingsAccountTransaction.withdrawal(this, office(),
+                transactionDTO.getPaymentDetail(), transactionDTO.getTransactionDate(), transactionAmountMoney, refNo);
+
+        // Do NOT add to this.transactions — avoids triggering lazy loading
+
+        if (this.sub_status.equals(SavingsAccountSubStatusEnum.INACTIVE.getValue())
+                || this.sub_status.equals(SavingsAccountSubStatusEnum.DORMANT.getValue())) {
+            this.sub_status = SavingsAccountSubStatusEnum.NONE.getValue();
+        }
+
+        // Incrementally update summary (same logic as updateSummaryWithPivotConfig for withdrawals)
+        this.summary.updateSummaryWithPivotConfig(this.currency, this.savingsAccountTransactionSummaryWrapper, transaction,
+                this.savingsAccountTransactions);
+
+        return transaction;
+    }
+
+    /**
+     * Incremental recalculation for same-day append-only deposits/withdrawals. Instead of iterating all N transactions,
+     * only sets derived fields on the new transaction and updates the previous-last transaction's period boundary.
+     *
+     * @param newTransaction
+     *            the newly created transaction
+     * @param previousTransaction
+     *            the last non-reversed transaction before the new one (may be null for first transaction)
+     * @param interestPostingUpToDate
+     *            the date up to which interest is calculated
+     */
+    public void recalculateIncrementally(final SavingsAccountTransaction newTransaction,
+            final SavingsAccountTransaction previousTransaction, final LocalDate interestPostingUpToDate) {
+        // 1. Running balance = current account balance (summary was already updated by
+        // depositWithoutCollectionAdd/withdrawWithoutCollectionAdd)
+        newTransaction.setRunningBalance(Money.of(this.currency, this.summary.getAccountBalance()));
+        // Delegate the cumulative balance/date computation (and previous-last boundary close) to the shared helper.
+        applyIncrementalBalances(List.of(newTransaction), previousTransaction, interestPostingUpToDate);
+    }
+
+    /**
+     * Sets running balance, overdraft amount and cumulative balance/date fields on every transaction the
+     * fast/incremental path persists, and closes the previous-last transaction's period boundary (incremental path).
+     * <p>
+     * The new transactions are passed in chronological (creation) order — withdrawal-fee transactions first, then the
+     * main deposit/withdrawal — and each must already carry its running balance (fee txns get it in
+     * {@code payChargeWithoutCollectionAdd}; the main txn is set by the caller). This mirrors the reverse-walk in
+     * {@link #resetAccountTransactionsEndOfDayBalances} that the full path runs, so the persisted period fields are
+     * identical to what a full recalculation would produce — avoiding null {@code balanceNumberOfDays}/cumulative
+     * fields on these rows (statement correctness, and avoids a later unboxing NPE during interest recalculation).
+     *
+     * @param newTransactionsInOrder
+     *            the new transactions in chronological order (fees first, then the main txn); must each have a running
+     *            balance set
+     * @param previousTransaction
+     *            the last non-reversed transaction before this batch (may be null; only the incremental path supplies
+     *            it)
+     * @param interestPostingUpToDate
+     *            the date up to which interest is calculated (the last new txn's balance runs to this date)
+     */
+    public void applyIncrementalBalances(final List<SavingsAccountTransaction> newTransactionsInOrder,
+            final SavingsAccountTransaction previousTransaction, final LocalDate interestPostingUpToDate) {
+        if (newTransactionsInOrder.isEmpty()) {
+            return;
+        }
+        // Reverse walk mirroring resetAccountTransactionsEndOfDayBalances: the last transaction's balance runs up to
+        // interestPostingUpToDate; each earlier transaction's balance ends the day before the following transaction.
+        LocalDate endOfBalanceDate = interestPostingUpToDate;
+        for (int i = newTransactionsInOrder.size() - 1; i >= 0; i--) {
+            final SavingsAccountTransaction transaction = newTransactionsInOrder.get(i);
+            final Money runningBalance = transaction.getRunningBalance(this.currency);
+            if (runningBalance.isLessThanZero() && !transaction.isAmountOnHold()) {
+                transaction.setOverdraftAmount(runningBalance.negated());
+            } else {
+                transaction.setOverdraftAmount(Money.zero(this.currency));
+            }
+            transaction.updateCumulativeBalanceAndDates(this.currency, endOfBalanceDate);
+            endOfBalanceDate = transaction.getTransactionDate().minusDays(1);
+        }
+        // Close the previous-last transaction's period boundary at the day before the first new transaction.
+        if (previousTransaction != null) {
+            previousTransaction.updateCumulativeBalanceAndDates(this.currency,
+                    newTransactionsInOrder.get(0).getTransactionDate().minusDays(1));
+        }
+    }
+
+    /**
+     * Builds accounting bridge data for a single new transaction without loading the full transactions collection. Used
+     * by the fast-path deposit/withdrawal to avoid O(N) transaction loading.
+     */
+    public Map<String, Object> deriveAccountingBridgeDataForSingleTransaction(final String currencyCode,
+            final SavingsAccountTransaction newTransaction, boolean isAccountTransfer) {
+        final Map<String, Object> accountingBridgeData = new LinkedHashMap<>();
+        accountingBridgeData.put("savingsId", getId());
+        accountingBridgeData.put("savingsProductId", productId());
+        accountingBridgeData.put("currencyCode", currencyCode);
+        accountingBridgeData.put("officeId", officeId());
+        accountingBridgeData.put("cashBasedAccountingEnabled", isCashBasedAccountingEnabledOnSavingsProduct());
+        accountingBridgeData.put("accrualBasedAccountingEnabled", isAccrualBasedAccountingEnabledOnSavingsProduct());
+        accountingBridgeData.put("isAccountTransfer", isAccountTransfer);
+
+        final List<Map<String, Object>> newSavingsTransactions = new ArrayList<>();
+        newSavingsTransactions.add(newTransaction.toMapData(currencyCode));
+        accountingBridgeData.put("newSavingsTransactions", newSavingsTransactions);
+        return accountingBridgeData;
+    }
+
+    /**
+     * Lightweight balance validation for fast-path withdrawals that does NOT load the transactions collection. Uses
+     * only the summary's account balance, min required balance, on-hold funds, and savings hold amount.
+     *
+     * @throws InsufficientAccountBalanceException
+     *             if the withdrawal would cause the balance to go below minimum
+     */
+    public void validateFastPathWithdrawalBalance(final BigDecimal transactionAmount, final boolean isException) {
+        Money runningBalance = this.summary.getAccountBalance(getCurrency());
+        Money minRequiredBalance = minRequiredBalanceDerived(getCurrency());
+        final BigDecimal withdrawalFee = null;
+
+        // After the withdrawal, the new balance is already reflected in summary (withdrawWithoutCollectionAdd updates
+        // it)
+        // So we check the post-withdrawal balance directly.
+        // The min-balance and on-hold checks are skipped for exception transactions (e.g. guarantor fund recovery),
+        // matching validateAccountBalanceDoesNotBecomeNegative which gates these checks on !isException — the held
+        // funds are released immediately after the withdrawal as part of the same transaction.
+
+        if (!isException && !isOverdraft()) {
+            if (runningBalance.minus(minRequiredBalance).isLessThanZero()) {
+                throw new InsufficientAccountBalanceException("transactionAmount", getAccountBalance(), withdrawalFee, transactionAmount);
+            }
+        }
+
+        // Overdraft accounts: enforce the overdraft limit regardless of isException.
+        // minRequiredBalance already incorporates -overdraftLimit (see minRequiredBalanceDerived), so this mirrors the
+        // dedicated overdraft branch in validateAccountBalanceDoesNotBecomeNegative. Overdraft accounts reach the
+        // fast/incremental paths (the predicates only exclude overdraft *interest*, not overdraft itself), so without
+        // this check they could withdraw past their limit.
+        if (isOverdraft()) {
+            if (runningBalance.minus(minRequiredBalance).isLessThanZero()) {
+                throw new InsufficientAccountBalanceException("transactionAmount", getAccountBalance(), withdrawalFee, transactionAmount);
+            }
+        }
+
+        // Check on-hold funds
+        if (!isException && getOnHoldFunds().compareTo(BigDecimal.ZERO) > 0) {
+            Money onHold = Money.of(getCurrency(), getOnHoldFunds());
+            if (runningBalance.minus(minRequiredBalance).minus(onHold).isLessThanZero()) {
+                throw new InsufficientAccountBalanceException("transactionAmount", getAccountBalance(), withdrawalFee, transactionAmount);
+            }
+        }
+
+        // Check savings hold amount
+        if (getSavingsHoldAmount().compareTo(BigDecimal.ZERO) > 0) {
+            Money savingsHold = Money.of(getCurrency(), getSavingsHoldAmount());
+            if (enforceMinRequiredBalance) {
+                if (runningBalance.minus(minRequiredBalance).minus(savingsHold).isLessThanZero()) {
+                    throw new InsufficientAccountBalanceException("transactionAmount", getAccountBalance(), withdrawalFee,
+                            transactionAmount);
+                }
+            } else {
+                if (runningBalance.minus(savingsHold).isLessThanZero()) {
+                    throw new InsufficientAccountBalanceException("transactionAmount", getAccountBalance(), withdrawalFee,
+                            transactionAmount);
+                }
+            }
+        }
+    }
+
+    /**
+     * Processes withdrawal fee charges WITHOUT adding the fee transaction to the managed transactions collection. Used
+     * by the fast/incremental paths to avoid triggering lazy loading of the collection. Returns the fee transactions (0
+     * or more) for the caller to save via the repository and include in journal entry posting.
+     */
+    public List<SavingsAccountTransaction> payWithdrawalFeeWithoutCollectionAdd(final BigDecimal withdrawalAmount,
+            final LocalDate transactionDate, final PaymentDetail paymentDetail, final String refNo) {
+        final List<SavingsAccountTransaction> feeTransactions = new ArrayList<>();
+        for (SavingsAccountCharge charge : this.charges()) {
+            if (charge.isWithdrawalFee() && charge.isActive()) {
+                if (charge.getFreeWithdrawalCount() == null) {
+                    charge.setFreeWithdrawalCount(0);
+                }
+                if (charge.isEnablePaymentType() && charge.isEnableFreeWithdrawal()) {
+                    if (paymentDetail != null
+                            && paymentDetail.getPaymentType().getName().equals(charge.getCharge().getPaymentType().getName())) {
+                        feeTransactions
+                                .addAll(resetFreeChargeDaysCountWithoutCollectionAdd(charge, withdrawalAmount, transactionDate, refNo));
+                    }
+                } else if (charge.isEnablePaymentType()) {
+                    if (paymentDetail != null
+                            && paymentDetail.getPaymentType().getName().equals(charge.getCharge().getPaymentType().getName())) {
+                        charge.updateWithdralFeeAmount(withdrawalAmount);
+                        feeTransactions.add(payChargeWithoutCollectionAdd(charge, charge.getAmountOutstanding(this.getCurrency()),
+                                transactionDate, refNo));
+                    }
+                } else if (!charge.isEnablePaymentType() && charge.isEnableFreeWithdrawal()) {
+                    feeTransactions.addAll(resetFreeChargeDaysCountWithoutCollectionAdd(charge, withdrawalAmount, transactionDate, refNo));
+                } else {
+                    charge.updateWithdralFeeAmount(withdrawalAmount);
+                    feeTransactions.add(
+                            payChargeWithoutCollectionAdd(charge, charge.getAmountOutstanding(this.getCurrency()), transactionDate, refNo));
+                }
+            }
+        }
+        return feeTransactions;
+    }
+
+    private SavingsAccountTransaction payChargeWithoutCollectionAdd(final SavingsAccountCharge savingsAccountCharge, final Money amountPaid,
+            final LocalDate transactionDate, final String refNo) {
+        savingsAccountCharge.pay(getCurrency(), amountPaid);
+        SavingsAccountTransaction chargeTransaction;
+        if (savingsAccountCharge.isWithdrawalFee()) {
+            chargeTransaction = SavingsAccountTransaction.withdrawalFee(this, office(), transactionDate, amountPaid, refNo);
+        } else if (savingsAccountCharge.isAnnualFee()) {
+            chargeTransaction = SavingsAccountTransaction.annualFee(this, office(), transactionDate, amountPaid);
+        } else {
+            chargeTransaction = SavingsAccountTransaction.charge(this, office(), transactionDate, amountPaid);
+        }
+        final SavingsAccountChargePaidBy chargePaidBy = SavingsAccountChargePaidBy.instance(chargeTransaction, savingsAccountCharge,
+                chargeTransaction.getAmount(this.currency).getAmount());
+        chargeTransaction.getSavingsAccountChargesPaid().add(chargePaidBy);
+        this.summary.updateSummaryWithPivotConfig(this.currency, this.savingsAccountTransactionSummaryWrapper, chargeTransaction,
+                this.savingsAccountTransactions);
+        // Capture the running balance for this fee txn from the summary (already updated above). The cumulative
+        // balance/date fields are then set in order by applyIncrementalBalances over the full set of new transactions.
+        chargeTransaction.setRunningBalance(Money.of(this.currency, this.summary.getAccountBalance()));
+        return chargeTransaction;
+    }
+
+    private List<SavingsAccountTransaction> resetFreeChargeDaysCountWithoutCollectionAdd(SavingsAccountCharge charge,
+            final BigDecimal transactionAmount, final LocalDate transactionDate, final String refNo) {
+        final List<SavingsAccountTransaction> result = new ArrayList<>();
+        LocalDate resetDate = charge.getResetChargeDate();
+        Integer restartPeriod = charge.getRestartFrequency();
+        if (charge.getRestartFrequencyEnum() == 2) {
+            LocalDate localDate = DateUtils.getBusinessLocalDate();
+            LocalDate resetLocalDate = (resetDate == null) ? this.activatedOnDate : resetDate;
+            LocalDate gapIntervalMonth = resetLocalDate.plusMonths(restartPeriod);
+            YearMonth gapYearMonth = YearMonth.from(gapIntervalMonth);
+            YearMonth localYearMonth = YearMonth.from(localDate);
+            if (localYearMonth.isBefore(gapYearMonth)) {
+                if (charge.getFreeWithdrawalCount() < charge.getFrequencyFreeWithdrawalCharge()) {
+                    charge.setFreeWithdrawalCount(charge.getFreeWithdrawalCount() + 1);
+                    charge.updateNoWithdrawalFee();
+                } else {
+                    charge.updateWithdralFeeAmount(transactionAmount);
+                    result.add(
+                            payChargeWithoutCollectionAdd(charge, charge.getAmountOutstanding(this.getCurrency()), transactionDate, refNo));
+                }
+            } else {
+                charge.setFreeWithdrawalCount(1);
+                charge.setDiscountDueDate(DateUtils.getBusinessLocalDate());
+                charge.updateNoWithdrawalFee();
+            }
+        } else {
+            long completedDays = (resetDate == null) ? DAYS.between(DateUtils.getBusinessLocalDate(), this.activatedOnDate)
+                    : DAYS.between(DateUtils.getBusinessLocalDate(), resetDate);
+            int totalDays = (int) completedDays;
+            if (totalDays < restartPeriod) {
+                if (charge.getFreeWithdrawalCount() < charge.getFrequencyFreeWithdrawalCharge()) {
+                    charge.setFreeWithdrawalCount(charge.getFreeWithdrawalCount() + 1);
+                    charge.updateNoWithdrawalFee();
+                } else {
+                    charge.updateWithdralFeeAmount(transactionAmount);
+                    result.add(
+                            payChargeWithoutCollectionAdd(charge, charge.getAmountOutstanding(this.getCurrency()), transactionDate, refNo));
+                }
+            } else {
+                charge.setFreeWithdrawalCount(1);
+                charge.setDiscountDueDate(DateUtils.getBusinessLocalDate());
+                charge.updateNoWithdrawalFee();
+            }
+        }
+        return result;
+    }
+
     public BigDecimal calculateWithdrawalFee(final BigDecimal transactionAmount) {
         BigDecimal result = BigDecimal.ZERO;
         if (isWithdrawalFeeApplicableForTransfer()) {

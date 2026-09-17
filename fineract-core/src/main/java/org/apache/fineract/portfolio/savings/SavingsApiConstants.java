@@ -105,6 +105,7 @@ public class SavingsApiConstants {
     public static final String nameParamName = "name";
     public static final String shortNameParamName = "shortName";
     public static final String interestReceivableAccount = "interestReceivableAccountId";
+    public static final String fundsOnHoldAccountIdParamName = "fundsOnHoldAccountId";
     public static final String descriptionParamName = "description";
     public static final String currencyCodeParamName = "currencyCode";
     public static final String digitsAfterDecimalParamName = "digitsAfterDecimal";
@@ -149,7 +150,9 @@ public class SavingsApiConstants {
     public static final String transactionDateParamName = "transactionDate";
     public static final String lienParamName = "lien";
     public static final String transactionAmountParamName = "transactionAmount";
-    public static final String preAuthParamName = "preAuth";
+    public static final String allowSettlementVarianceParamName = "allowSettlementVariance";
+    public static final String settlementVariancePercentageParamName = "settlementVariancePercentage";
+    public static final String releaseTransactionIdParamName = "releaseTransactionId";
     public static final String paymentDetailDataParamName = "paymentDetailData";
     public static final String runningBalanceParamName = "runningBalance";
     public static final String reversedParamName = "reversed";

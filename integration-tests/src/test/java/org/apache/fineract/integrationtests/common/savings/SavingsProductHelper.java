@@ -411,7 +411,6 @@ public class SavingsProductHelper {
                 }
             }
         }
-        // Hold & Release Enhancement: Add fundsOnHoldAccountId if set
         if (this.fundsOnHoldAccountId != null) {
             map.put("fundsOnHoldAccountId", this.fundsOnHoldAccountId);
         }

@@ -20,14 +20,15 @@ package org.apache.fineract.portfolio.savings.data;
 
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.activatedOnDateParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.allowSettlementVarianceParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.bankNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.checkNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.closedOnDateParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.lienAllowedParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.paymentTypeIdParamName;
-import static org.apache.fineract.portfolio.savings.SavingsApiConstants.preAuthParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.receiptNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.routingCodeParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.settlementVariancePercentageParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionAccountNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionAmountParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionDateParamName;
@@ -60,10 +61,8 @@ import org.apache.fineract.portfolio.savings.SavingsApiConstants;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountSubStatusEnum;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransaction;
-import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransactionRepository;
 import org.apache.fineract.portfolio.savings.exception.TransactionBeforePivotDateNotAllowed;
 import org.apache.fineract.useradministration.domain.AppUser;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -73,12 +72,13 @@ public class SavingsAccountTransactionDataValidator {
     private final FromJsonHelper fromApiJsonHelper;
     private static final Set<String> SAVINGS_ACCOUNT_HOLD_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
-                    transactionAmountParamName, lienAllowedParamName, SavingsApiConstants.reasonForBlockParamName, preAuthParamName));
+                    transactionAmountParamName, lienAllowedParamName, SavingsApiConstants.reasonForBlockParamName,
+                    allowSettlementVarianceParamName));
     private static final Set<String> SAVINGS_ACCOUNT_RELEASE_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
-                    transactionAmountParamName, paymentTypeIdParamName, SavingsApiConstants.noteParamName, preAuthParamName));
+                    transactionAmountParamName, paymentTypeIdParamName, SavingsApiConstants.noteParamName, allowSettlementVarianceParamName,
+                    settlementVariancePercentageParamName));
     private final ConfigurationDomainService configurationDomainService;
-    private final SavingsAccountTransactionRepository savingsAccountTransactionRepository;
 
     public void validateTransactionWithPivotDate(final LocalDate transactionDate, final SavingsAccount savingsAccount) {
         final boolean backdatedTxnsAllowedTill = this.configurationDomainService.retrievePivotDateConfig();
@@ -124,6 +124,7 @@ public class SavingsAccountTransactionDataValidator {
         baseDataValidator.reset().parameter(paymentTypeIdParamName).value(paymentType).notNull();
 
         validatePaymentTypeDetails(baseDataValidator, element);
+        validateSettlementVarianceParameters(baseDataValidator, element);
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
     }
@@ -233,8 +234,9 @@ public class SavingsAccountTransactionDataValidator {
         final BigDecimal amount = this.fromApiJsonHelper.extractBigDecimalWithLocaleNamed(transactionAmountParamName, element);
         baseDataValidator.reset().parameter(transactionAmountParamName).value(amount).notNull().positiveAmount();
         final LocalDate transactionDate = this.fromApiJsonHelper.extractLocalDateNamed(transactionDateParamName, element);
-        final Boolean preAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
-        baseDataValidator.reset().parameter(preAuthParamName).value(preAuth).ignoreIfNull().trueOrFalseRequired(preAuth);
+        final Boolean allowSettlementVariance = this.fromApiJsonHelper.extractBooleanNamed(allowSettlementVarianceParamName, element);
+        baseDataValidator.reset().parameter(allowSettlementVarianceParamName).value(allowSettlementVariance).ignoreIfNull()
+                .trueOrFalseRequired(allowSettlementVariance);
 
         final String reasonForBlock = this.fromApiJsonHelper.extractStringNamed(SavingsApiConstants.reasonForBlockParamName, element);
         baseDataValidator.reset().parameter(SavingsApiConstants.reasonForBlockParamName).value(reasonForBlock).notBlank()
@@ -285,7 +287,13 @@ public class SavingsAccountTransactionDataValidator {
                 }
             }
         }
-        LocalDate lastTransactionDate = retrieveLastTransactionDate(account, backdatedTxnsAllowedTill);
+        LocalDate lastTransactionDate = null;
+
+        if (!backdatedTxnsAllowedTill) {
+            lastTransactionDate = account.retrieveLastTransactionDate();
+        } else {
+            lastTransactionDate = account.retrieveLastTransactionDateWithPivotConfig();
+        }
 
         // compare two dates now
         if (DateUtils.isBefore(transactionDate, lastTransactionDate)) {
@@ -294,14 +302,6 @@ public class SavingsAccountTransactionDataValidator {
         }
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
-    }
-
-    private LocalDate retrieveLastTransactionDate(final SavingsAccount account, final boolean backdatedTxnsAllowedTill) {
-        if (backdatedTxnsAllowedTill) {
-            return account.retrieveLastTransactionDateWithPivotConfig();
-        }
-        return this.savingsAccountTransactionRepository.findLastTransactionDate(account.getId(), PageRequest.of(0, 1)).stream().findFirst()
-                .orElse(null);
     }
 
     public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction,
@@ -318,6 +318,9 @@ public class SavingsAccountTransactionDataValidator {
 
         if (holdTransaction == null) {
             baseDataValidator.failWithCode("validation.msg.validation.errors.exist", "Transaction not found");
+        } else if (!holdTransaction.isAmountOnHold()) {
+            baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
+                    .failWithCode("validation.msg.transaction.is.not.hold", "Transaction is not a hold transaction");
         } else if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
             baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
                     .failWithCode("validation.msg.amount.is.not.on.hold", "Transaction amount is not on hold");
@@ -333,8 +336,8 @@ public class SavingsAccountTransactionDataValidator {
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
 
-        // Extract transactionDate from command, default to business date if not provided
-        LocalDate transactionDate = DateUtils.getBusinessLocalDate();
+        // Extract transactionDate from command, default to the original hold transaction date if not provided.
+        LocalDate transactionDate = holdTransaction == null ? DateUtils.getBusinessLocalDate() : holdTransaction.getTransactionDate();
         BigDecimal transactionAmount = holdTransaction == null ? null : holdTransaction.getAmount();
         if (command != null && command.parsedJson() != null) {
             final JsonElement element = command.parsedJson();
@@ -351,14 +354,7 @@ public class SavingsAccountTransactionDataValidator {
             }
             validatePaymentTypeDetails(baseDataValidator, element);
 
-            final Boolean requestedPreAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
-            baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).notNull().trueOrFalseRequired(requestedPreAuth);
-
-            if (holdTransaction != null && requestedPreAuth != null && !requestedPreAuth.equals(holdTransaction.isPreAuth())) {
-                baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).failWithCode(
-                        "validation.msg.preauth.does.not.match.hold.transaction",
-                        "The preAuth parameter must match the original hold transaction");
-            }
+            validateSettlementVarianceParameters(baseDataValidator, element);
         }
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
@@ -368,6 +364,30 @@ public class SavingsAccountTransactionDataValidator {
         return transaction;
     }
 
+    public void validateSettlementVarianceParameters(final JsonElement element) {
+        final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+        final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
+                .resource(SAVINGS_ACCOUNT_RESOURCE_NAME);
+        validateSettlementVarianceParameters(baseDataValidator, element);
+        throwExceptionIfValidationWarningsExist(dataValidationErrors);
+    }
+
+    private void validateSettlementVarianceParameters(final DataValidatorBuilder baseDataValidator, final JsonElement element) {
+        Boolean allowSettlementVariance = null;
+        if (this.fromApiJsonHelper.parameterExists(allowSettlementVarianceParamName, element)) {
+            allowSettlementVariance = this.fromApiJsonHelper.extractBooleanNamed(allowSettlementVarianceParamName, element);
+            baseDataValidator.reset().parameter(allowSettlementVarianceParamName).value(allowSettlementVariance).ignoreIfNull()
+                    .trueOrFalseRequired(allowSettlementVariance);
+        }
+
+        if (this.fromApiJsonHelper.parameterExists(settlementVariancePercentageParamName, element)) {
+            final BigDecimal settlementVariancePercentage = this.fromApiJsonHelper
+                    .extractBigDecimalWithLocaleNamed(settlementVariancePercentageParamName, element);
+            baseDataValidator.reset().parameter(settlementVariancePercentageParamName).value(settlementVariancePercentage).notNull()
+                    .zeroOrPositiveAmount().notGreaterThanMax(BigDecimal.valueOf(100));
+        }
+    }
+
     public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction) {
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
@@ -375,6 +395,9 @@ public class SavingsAccountTransactionDataValidator {
 
         if (holdTransaction == null) {
             baseDataValidator.failWithCode("validation.msg.validation.errors.exist", "Transaction not found");
+        } else if (!holdTransaction.isAmountOnHold()) {
+            baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
+                    .failWithCode("validation.msg.transaction.is.not.hold", "Transaction is not a hold transaction");
         } else if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
             baseDataValidator.parameter(SavingsApiConstants.amountParamName).value(holdTransaction.getAmount())
                     .failWithCode("validation.msg.amount.is.not.on.hold", "Transaction amount is not on hold");

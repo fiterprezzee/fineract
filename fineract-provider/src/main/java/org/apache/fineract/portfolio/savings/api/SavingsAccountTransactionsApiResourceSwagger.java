@@ -206,8 +206,10 @@ final class SavingsAccountTransactionsApiResourceSwagger {
         public String lienAllowed;
         @Schema(example = "String")
         public String reasonForBlock;
-        @Schema(description = "Optional hold flag. true identifies a pre-authorization hold; false or omitted identifies a normal hold.", example = "false")
-        public Boolean preAuth;
+        @Schema(description = "Optional generic settlement variance flag. For hold transactions this stores the hold as variance-enabled; for linked withdrawal settlement this allows settlement variance.", example = "true")
+        public Boolean allowSettlementVariance;
+        @Schema(description = "Optional percentage override for linked withdrawal settlement. Used only when allowSettlementVariance is true.", example = "10")
+        public BigDecimal settlementVariancePercentage;
         @Schema(example = "1")
         public Integer paymentTypeId;
     }

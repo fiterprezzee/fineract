@@ -20,10 +20,13 @@ package org.apache.fineract.portfolio.savings.service;
 
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.SAVINGS_ACCOUNT_CHARGE_RESOURCE_NAME;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.allowSettlementVarianceParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.amountParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.chargeIdParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.dueAsOfDateParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.lienAllowedParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.releaseTransactionIdParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.settlementVariancePercentageParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionAmountParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionDateParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.withHoldTaxParamName;
@@ -117,6 +120,8 @@ import org.apache.fineract.portfolio.savings.domain.SavingsAccountRepositoryWrap
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountStatusType;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransaction;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransactionRepository;
+import org.apache.fineract.portfolio.savings.exception.DepositAccountTransactionNotAllowedException;
+import org.apache.fineract.portfolio.savings.exception.InsufficientAccountBalanceException;
 import org.apache.fineract.portfolio.savings.exception.PostInterestAsOnDateException;
 import org.apache.fineract.portfolio.savings.exception.PostInterestAsOnDateException.PostInterestAsOnExceptionType;
 import org.apache.fineract.portfolio.savings.exception.PostInterestClosingDateException;
@@ -283,7 +288,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
 
-        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
 
         if (account.getGsim() != null) {
             isGsim = true;
@@ -362,7 +367,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
 
-        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
 
         if (account.getGsim() != null) {
             isGsim = true;
@@ -378,8 +383,21 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final boolean isWithdrawBalance = false;
         final SavingsTransactionBooleanValues transactionBooleanValues = new SavingsTransactionBooleanValues(isAccountTransfer,
                 isRegularTransaction, isApplyWithdrawFee, isInterestTransfer, isWithdrawBalance);
+        final Long releaseTransactionId = command.hasParameter(releaseTransactionIdParamName)
+                ? command.longValueOfParameterNamed(releaseTransactionIdParamName)
+                : null;
+        final boolean allowSettlementVariance = isSettlementVarianceAllowedByRequest(command);
+        final BigDecimal settlementVariancePercentage = retrieveRequestSettlementVariancePercentage(command, allowSettlementVariance);
+        final SavingsAccountTransaction releasedHoldTransaction = retrieveAndValidateReleasedHoldTransaction(savingsId,
+                releaseTransactionId, transactionAmount, account, allowSettlementVariance, settlementVariancePercentage);
+        final boolean skipBalanceValidation = releasedHoldTransaction != null;
         final SavingsAccountTransaction withdrawal = this.savingsAccountDomainService.handleWithdrawal(account, fmt, transactionDate,
-                transactionAmount, paymentDetail, transactionBooleanValues, backdatedTxnsAllowedTill);
+                transactionAmount, paymentDetail, transactionBooleanValues, backdatedTxnsAllowedTill, skipBalanceValidation);
+
+        if (releasedHoldTransaction != null) {
+            withdrawal.setRelatedTransactionId(releaseTransactionId);
+            this.savingsAccountTransactionRepository.saveAndFlush(withdrawal);
+        }
 
         if (isGsim && (withdrawal.getId() != null)) {
             GroupSavingsIndividualMonitoring gsim = gsimRepository.findById(account.getGsim().getId()).orElseThrow();
@@ -403,6 +421,31 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
                 .withSavingsId(savingsId) //
                 .with(changes)//
                 .build();
+    }
+
+    private SavingsAccountTransaction retrieveAndValidateReleasedHoldTransaction(final Long savingsId, final Long releaseTransactionId,
+            final BigDecimal transactionAmount, final SavingsAccount account, final boolean allowSettlementVariance,
+            final BigDecimal settlementVariancePercentage) {
+        if (releaseTransactionId == null) {
+            return null;
+        }
+
+        final SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
+                .findUnsettledReleasedHoldBySavingsAccountIdAndReleaseTransactionId(savingsId, releaseTransactionId);
+        if (holdTransaction == null) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.transaction.invalid.or.already.settled",
+                    "Release transaction is invalid or already settled", releaseTransactionId);
+        }
+
+        final BigDecimal withdrawalFeeAmount = calculateV2WithdrawalFeeAmount(account, transactionAmount);
+        final boolean settlementVarianceAllowed = isSettlementVarianceAllowed(holdTransaction, allowSettlementVariance);
+        if (!settlementVarianceAllowed) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.transaction.variance.not.allowed",
+                    "Settlement variance is not allowed for this released hold", releaseTransactionId);
+        }
+        validateV2ReleaseAmount(account, holdTransaction.getAmount(), transactionAmount, withdrawalFeeAmount, settlementVarianceAllowed,
+                settlementVariancePercentage);
+        return holdTransaction;
     }
 
     @Transactional
@@ -1749,10 +1792,10 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final AppUser submittedBy = this.context.authenticatedUser();
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
-        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         final LocalDate transactionDate = command.localDateValueOfParameterNamed(transactionDateParamName);
         final boolean lienAllowed = command.booleanPrimitiveValueOfParameterNamed(lienAllowedParamName);
-        final boolean preAuth = command.booleanPrimitiveValueOfParameterNamed(SavingsApiConstants.preAuthParamName);
+        final boolean allowSettlementVariance = command.booleanPrimitiveValueOfParameterNamed(allowSettlementVarianceParamName);
 
         checkClientOrGroupActive(account);
 
@@ -1768,7 +1811,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountTransactionDataValidator.validateHoldAndAssembleForm(command.json(), account, submittedBy,
                 backdatedTxnsAllowedTill);
         SavingsAccountTransaction transaction = this.savingsAccountDomainService.handleHold(account, amount, transactionDate, lienAllowed);
-        transaction.updatePreAuth(preAuth);
+        transaction.updateAllowSettlementVariance(allowSettlementVariance);
 
         account.holdAmount(amount);
         transaction.setRunningBalance(runningBalance);
@@ -1779,10 +1822,24 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         account.getAccountBalance();
         this.savingsAccountTransactionDataValidator.validateTransactionWithPivotDate(transaction.getTransactionDate(), account);
 
+        final Set<Long> existingTransactionIds = new HashSet<>();
+        final Set<Long> existingReversedTransactionIds = new HashSet<>();
+        if (backdatedTxnsAllowedTill) {
+            existingTransactionIds.addAll(account.findCurrentTransactionIdsWithPivotDateConfig());
+            existingReversedTransactionIds.addAll(account.findCurrentReversedTransactionIdsWithPivotDateConfig());
+        } else {
+            existingTransactionIds.addAll(account.findExistingTransactionIds());
+            existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
+        }
+
         // Save transaction first to get ID
         this.savingsAccountTransactionRepository.saveAndFlush(transaction);
 
-        // HOLD journal posting is skipped for this endpoint; avoid loading the full transaction collection.
+        account.addTransaction(transaction);
+
+        // Post journal entries (includes HOLD GL posting)
+        this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
+                backdatedTxnsAllowedTill);
 
         this.savingsAccountTransactionRepository.save(transaction);
 
@@ -1807,7 +1864,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         context.authenticatedUser();
 
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
-        final SavingsAccount account = this.savingAccountAssembler.assembleForOperation(savingsId, backdatedTxnsAllowedTill);
+        final SavingsAccount account = this.savingAccountAssembler.assembleFrom(savingsId, backdatedTxnsAllowedTill);
         checkClientOrGroupActive(account);
 
         SavingsAccountTransaction holdTransaction = this.savingsAccountTransactionRepository
@@ -1815,6 +1872,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         if (holdTransaction == null) {
             throw new SavingsAccountTransactionNotFoundException(savingsId, savingsTransactionId);
         }
+        validateReleaseTransactionIsHold(holdTransaction, savingsTransactionId);
 
         // Validate hold is not already released
         if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
@@ -1847,6 +1905,8 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         // Funds are simply released back to available balance
         // Client can call withdraw endpoint separately if needed
 
+        account.addTransaction(releaseTxn);
+
         if (backdatedTxnsAllowedTill) {
             this.savingsAccountTransactionRepository.saveAll(account.getSavingsAccountTransactionsWithPivotConfig());
         }
@@ -1857,7 +1917,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         Map<String, Object> changes = new HashMap<>();
         changes.put("releaseTransactionId", releaseTxn.getId());
         changes.put("holdTransactionId", holdTransaction.getId());
-        changes.put("preAuth", holdTransaction.isPreAuth());
+        changes.put("allowSettlementVariance", holdTransaction.isAllowSettlementVariance());
 
         return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
@@ -1887,6 +1947,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         if (holdTransaction == null) {
             throw new SavingsAccountTransactionNotFoundException(savingsId, savingsTransactionId);
         }
+        validateReleaseTransactionIsHold(holdTransaction, savingsTransactionId);
 
         // Validate hold is not already released
         if (holdTransaction.getReleaseIdOfHoldAmountTransaction() != null) {
@@ -1907,14 +1968,21 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
             existingReversedTransactionIds.addAll(account.findExistingReversedTransactionIds());
         }
 
-        final SavingsAccountTransaction releaseTxn = this.savingsAccountTransactionDataValidator
+        final SavingsAccountTransaction validatedReleaseTxn = this.savingsAccountTransactionDataValidator
                 .validateReleaseAmountAndAssembleForm(holdTransaction, command);
-        releaseTxn.updatePreAuth(holdTransaction.isPreAuth());
+        final SavingsAccountTransaction releaseTxn = SavingsAccountTransaction.releaseAmount(holdTransaction,
+                validatedReleaseTxn.getTransactionDate());
+        releaseTxn.updateAllowSettlementVariance(holdTransaction.isAllowSettlementVariance());
 
         final BigDecimal holdAmount = holdTransaction.getAmount();
-        final BigDecimal settlementAmount = releaseTxn.getAmount();
-        final boolean preAuth = holdTransaction.isPreAuth();
-        validateV2ReleaseAmount(account, holdAmount, settlementAmount, preAuth);
+        final BigDecimal settlementAmount = retrieveV2SettlementAmount(command, holdAmount);
+        final BigDecimal withdrawalFeeAmount = calculateV2WithdrawalFeeAmount(account, settlementAmount);
+        final boolean allowSettlementVariance = isSettlementVarianceAllowedByRequest(command);
+        final BigDecimal settlementVariancePercentage = retrieveRequestSettlementVariancePercentage(command, allowSettlementVariance);
+        final boolean settlementVarianceAllowed = isSettlementVarianceAllowed(holdTransaction, allowSettlementVariance);
+        validateV2ReleaseAmount(account, holdAmount, settlementAmount, withdrawalFeeAmount, settlementVarianceAllowed,
+                settlementVariancePercentage);
+        validateV2ReleaseWithdrawalAllowed(account, releaseTxn.getTransactionDate());
 
         Money runningBalance = Money.of(account.getCurrency(), account.getAccountBalance());
         Money savingsOnHold = Money.of(account.getCurrency(), account.getSavingsHoldAmount());
@@ -1930,10 +1998,17 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountTransactionRepository.saveAndFlush(releaseTxn);
         holdTransaction.updateReleaseId(releaseTxn.getId());
 
-        // V2: Create WITHDRAWAL transaction linked to the release
+        // V2: Create WITHDRAWAL transaction through the domain path so account-level withdrawal rules still apply.
+        final DateTimeFormatter fmt = v2ReleaseFormatter(command);
+        final Long relaxingDaysConfigForPivotDate = this.configurationDomainService.retrieveRelaxingDaysConfigForPivotDate();
+        final Map<String, Object> paymentDetailChanges = new LinkedHashMap<>();
+        final PaymentDetail paymentDetail = command == null ? null
+                : this.paymentDetailWritePlatformService.createAndPersistPaymentDetail(command, paymentDetailChanges);
+        final SavingsAccountTransactionDTO withdrawalTransactionDTO = new SavingsAccountTransactionDTO(fmt, releaseTxn.getTransactionDate(),
+                settlementAmount, paymentDetail, null, null);
         UUID refNo = UUID.randomUUID();
-        SavingsAccountTransaction withdrawalTxn = SavingsAccountTransaction.withdrawal(account, account.office(), null,
-                releaseTxn.getTransactionDate(), Money.of(account.getCurrency(), settlementAmount), refNo.toString());
+        SavingsAccountTransaction withdrawalTxn = account.withdraw(withdrawalTransactionDTO, true, backdatedTxnsAllowedTill,
+                relaxingDaysConfigForPivotDate, refNo.toString());
 
         // Link withdrawal to release transaction
         withdrawalTxn.setRelatedTransactionId(releaseTxn.getId());
@@ -1942,14 +2017,17 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         Money withdrawalRunningBalance = runningBalance.minus(settlementAmount);
         withdrawalTxn.setRunningBalance(withdrawalRunningBalance);
 
-        // Deduct from account balance
-        account.getSummary().withdraw(settlementAmount);
+        if (!backdatedTxnsAllowedTill) {
+            account.getSummary().withdraw(settlementAmount);
+        }
 
         this.savingsAccountTransactionRepository.saveAndFlush(withdrawalTxn);
 
         // Add transactions to account
         account.addTransaction(releaseTxn);
-        account.addTransaction(withdrawalTxn);
+        if (!settlementVarianceAllowed) {
+            validateV2ReleaseBalance(account, settlementAmount, backdatedTxnsAllowedTill);
+        }
 
         // Post journal entries for the withdrawal transaction
         this.savingsAccountDomainService.postJournalEntries(account, existingTransactionIds, existingReversedTransactionIds,
@@ -1968,55 +2046,132 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         changes.put("holdTransactionId", holdTransaction.getId());
         changes.put("holdAmount", holdAmount);
         changes.put("settlementAmount", settlementAmount);
-        changes.put("preAuth", holdTransaction.isPreAuth());
+        changes.put("allowSettlementVariance", allowSettlementVariance);
+        if (settlementVariancePercentage != null) {
+            changes.put("settlementVariancePercentage", settlementVariancePercentage);
+        }
 
         return new CommandProcessingResultBuilder().withEntityId(releaseTxn.getId()).withOfficeId(account.officeId())
                 .withClientId(account.clientId()).withGroupId(account.groupId()).withSavingsId(account.getId()).with(changes).build();
     }
 
+    private BigDecimal retrieveV2SettlementAmount(final JsonCommand command, final BigDecimal holdAmount) {
+        if (command != null && command.hasParameter(transactionAmountParamName)) {
+            return command.bigDecimalValueOfParameterNamed(transactionAmountParamName);
+        }
+        return holdAmount;
+    }
+
+    private boolean isSettlementVarianceAllowedByRequest(final JsonCommand command) {
+        return command != null && command.hasParameter(allowSettlementVarianceParamName)
+                && command.booleanPrimitiveValueOfParameterNamed(allowSettlementVarianceParamName);
+    }
+
+    private boolean isSettlementVarianceAllowed(final SavingsAccountTransaction holdTransaction, final boolean allowSettlementVariance) {
+        return holdTransaction.isAllowSettlementVariance() || allowSettlementVariance;
+    }
+
+    private BigDecimal retrieveRequestSettlementVariancePercentage(final JsonCommand command, final boolean allowSettlementVariance) {
+        if (allowSettlementVariance && command != null && command.hasParameter(settlementVariancePercentageParamName)) {
+            return command.bigDecimalValueOfParameterNamed(settlementVariancePercentageParamName);
+        }
+        return null;
+    }
+
+    private BigDecimal calculateV2WithdrawalFeeAmount(final SavingsAccount account, final BigDecimal settlementAmount) {
+        BigDecimal withdrawalFeeAmount = BigDecimal.ZERO;
+        for (SavingsAccountCharge charge : account.charges()) {
+            if (charge.isWithdrawalFee() && charge.isActive() && !charge.isEnableFreeWithdrawal() && !charge.isEnablePaymentType()) {
+                withdrawalFeeAmount = withdrawalFeeAmount.add(charge.calculateWithdralFeeAmount(settlementAmount),
+                        MoneyHelper.getMathContext());
+            }
+        }
+        return withdrawalFeeAmount;
+    }
+
+    private DateTimeFormatter v2ReleaseFormatter(final JsonCommand command) {
+        if (command != null && command.dateFormat() != null) {
+            final Locale locale = command.extractLocale();
+            return DateTimeFormatter.ofPattern(command.dateFormat()).withLocale(locale);
+        }
+        return DateTimeFormatter.ISO_LOCAL_DATE;
+    }
+
+    private void validateReleaseTransactionIsHold(final SavingsAccountTransaction transaction, final Long savingsTransactionId) {
+        if (!transaction.isAmountOnHold()) {
+            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.transaction.is.not.hold",
+                    "Transaction is not a hold transaction", savingsTransactionId);
+        }
+    }
+
+    private void validateV2ReleaseWithdrawalAllowed(final SavingsAccount account, final LocalDate transactionDate) {
+        account.validateForAccountBlock();
+        account.validateForDebitBlock();
+        if (!account.allowWithdrawal()) {
+            throw new DepositAccountTransactionNotAllowedException(account.getId(), "withdraw", account.depositAccountType());
+        }
+        if (!account.isTransactionAllowed(SavingsAccountTransactionType.WITHDRAWAL, transactionDate)) {
+            throw new GeneralPlatformDomainRuleException("error.msg.saving.account.transaction.withdrawal.not.allowed",
+                    "Withdrawal is not allowed for this savings account", account.getId());
+        }
+    }
+
+    private void validateV2ReleaseBalance(final SavingsAccount account, final BigDecimal settlementAmount,
+            final boolean backdatedTxnsAllowedTill) {
+        if (account.allowOverdraft() && account.getAccountBalance().compareTo(BigDecimal.ZERO) < 0) {
+            validateV2RemainingHoldCoverage(account, settlementAmount);
+            return;
+        }
+        List<DepositAccountOnHoldTransaction> depositAccountOnHoldTransactions = null;
+        if (account.getOnHoldFunds().compareTo(BigDecimal.ZERO) > 0) {
+            depositAccountOnHoldTransactions = this.depositAccountOnHoldTransactionRepository
+                    .findBySavingsAccountAndReversedFalseOrderByCreatedDateAsc(account);
+        }
+        account.validateAccountBalanceDoesNotBecomeNegative(settlementAmount, false, depositAccountOnHoldTransactions,
+                backdatedTxnsAllowedTill);
+    }
+
+    private void validateV2RemainingHoldCoverage(final SavingsAccount account, final BigDecimal settlementAmount) {
+        if (account.getSavingsHoldAmount().compareTo(BigDecimal.ZERO) > 0
+                && account.getWithdrawableBalance().compareTo(BigDecimal.ZERO) < 0) {
+            throw new InsufficientAccountBalanceException("transactionAmount", account.getAccountBalance(), null, settlementAmount);
+        }
+    }
+
     private void validateV2ReleaseAmount(final SavingsAccount account, final BigDecimal holdAmount, final BigDecimal settlementAmount,
-            final boolean preAuth) {
+            final BigDecimal withdrawalFeeAmount, final boolean settlementVarianceAllowed,
+            final BigDecimal settlementVariancePercentageOverride) {
         if (settlementAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.must.be.positive",
                     "Release amount must be greater than zero");
         }
 
         final int amountComparison = settlementAmount.compareTo(holdAmount);
-        if (!preAuth && amountComparison != 0) {
+        if (!settlementVarianceAllowed && amountComparison != 0) {
             throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.must.equal.hold.amount",
                     "Release amount must equal hold amount for a standard hold");
         }
 
-        final BigDecimal excessAmount = settlementAmount.subtract(holdAmount);
-        if (preAuth && excessAmount.compareTo(BigDecimal.ZERO) > 0) {
-            final BigDecimal configuredPercentage = BigDecimal
-                    .valueOf(this.configurationDomainService.retrievePreAuthReleaseAllowedPercentage());
-            final BigDecimal allowedExcessAmount = holdAmount.multiply(configuredPercentage).divide(BigDecimal.valueOf(100),
+        final BigDecimal totalDebitAmount = settlementAmount.add(withdrawalFeeAmount);
+        final BigDecimal excessAmount = totalDebitAmount.subtract(holdAmount);
+        if (settlementVarianceAllowed && excessAmount.compareTo(BigDecimal.ZERO) > 0) {
+            final BigDecimal settlementVariancePercentage = retrieveSettlementVariancePercentage(settlementVariancePercentageOverride);
+            final BigDecimal allowedExcessAmount = holdAmount.multiply(settlementVariancePercentage).divide(BigDecimal.valueOf(100),
                     MathContext.DECIMAL64);
             if (excessAmount.compareTo(allowedExcessAmount) > 0) {
                 throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.release.amount.exceeds.allowed.preauth.percentage",
-                        "Release amount exceeds the configured preAuth allowed percentage");
+                        "Release amount exceeds the configured settlement variance percentage");
             }
         }
 
-        final BigDecimal withdrawableAfterHoldRelease = account.getWithdrawableBalance().add(holdAmount);
-        final BigDecimal shortage = settlementAmount.subtract(withdrawableAfterHoldRelease);
-        if (shortage.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
-        }
+    }
 
-        if (!preAuth || excessAmount.compareTo(BigDecimal.ZERO) <= 0 || shortage.compareTo(excessAmount) > 0 || !account.allowOverdraft()) {
-            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.insufficient.funds.for.release",
-                    "Insufficient funds for release amount");
+    private BigDecimal retrieveSettlementVariancePercentage(final BigDecimal settlementVariancePercentageOverride) {
+        if (settlementVariancePercentageOverride != null && settlementVariancePercentageOverride.compareTo(BigDecimal.ZERO) > 0) {
+            return settlementVariancePercentageOverride;
         }
-
-        final BigDecimal overdraftLimit = account.getOverdraftLimit() == null ? BigDecimal.ZERO : account.getOverdraftLimit();
-        final BigDecimal finalBalance = account.getAccountBalance().subtract(settlementAmount);
-        final BigDecimal overdraftRequired = finalBalance.signum() < 0 ? finalBalance.abs() : BigDecimal.ZERO;
-        if (overdraftRequired.compareTo(overdraftLimit) > 0) {
-            throw new GeneralPlatformDomainRuleException("error.msg.savingsaccount.insufficient.overdraft.limit.for.release",
-                    "Insufficient overdraft limit for release amount");
-        }
+        final Long configuredPercentageValue = this.configurationDomainService.retrievePreAuthReleaseAllowedPercentage();
+        return BigDecimal.valueOf(configuredPercentageValue == null ? 0 : configuredPercentageValue);
     }
 
     @Transactional

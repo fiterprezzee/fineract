@@ -135,8 +135,8 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
     @Column(name = "is_lien_transaction")
     private Boolean lienTransaction;
 
-    @Column(name = "is_pre_authorization", nullable = false)
-    private boolean preAuth;
+    @Column(name = "is_allow_settlement_variance", nullable = false)
+    private boolean allowSettlementVariance;
 
     @Column(name = "ref_no", nullable = true)
     private String refNo;
@@ -161,7 +161,7 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         this.submittedOnDate = DateUtils.getBusinessLocalDate();
         this.isManualTransaction = isManualTransaction;
         this.lienTransaction = lienTransaction;
-        this.preAuth = false;
+        this.allowSettlementVariance = false;
         this.refNo = refNo;
     }
 
@@ -336,7 +336,7 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
                 accountTransaction.paymentDetail, accountTransaction.typeOf, accountTransaction.getTransactionDate(),
                 accountTransaction.amount, accountTransaction.reversed, accountTransaction.isManualTransaction,
                 accountTransaction.lienTransaction, accountTransaction.refNo);
-        transaction.updatePreAuth(accountTransaction.preAuth);
+        transaction.updateAllowSettlementVariance(accountTransaction.allowSettlementVariance);
         return transaction;
     }
 
@@ -360,7 +360,7 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
                 accountTransaction.paymentDetail, SavingsAccountTransactionType.AMOUNT_RELEASE.getValue(), transactionDate, amount,
                 accountTransaction.reversed, accountTransaction.isManualTransaction, accountTransaction.lienTransaction,
                 accountTransaction.refNo);
-        transaction.updatePreAuth(accountTransaction.preAuth);
+        transaction.updateAllowSettlementVariance(accountTransaction.allowSettlementVariance);
         return transaction;
     }
 
@@ -478,12 +478,12 @@ public final class SavingsAccountTransaction extends AbstractAuditableWithUTCDat
         this.reasonForBlock = reasonForBlock;
     }
 
-    public void updatePreAuth(boolean preAuth) {
-        this.preAuth = preAuth;
+    public void updateAllowSettlementVariance(boolean allowSettlementVariance) {
+        this.allowSettlementVariance = allowSettlementVariance;
     }
 
-    public boolean isPreAuth() {
-        return this.preAuth;
+    public boolean isAllowSettlementVariance() {
+        return this.allowSettlementVariance;
     }
 
     public Long getReleaseIdOfHoldAmountTransaction() {

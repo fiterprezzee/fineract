@@ -273,6 +273,59 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
+    public void testV2ReleaseAllowsStandardHoldVarianceWhenSettlementVarianceEnabled() {
+        updatePreAuthReleaseAllowedPercentage(0L);
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "100", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId);
+
+        HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransactionId, "105", true, "10");
+        assertNotNull(v2Response, "Standard hold variance should be allowed when request flag enables it");
+
+        HashMap changes = (HashMap) v2Response.get("changes");
+        assertNotNull(changes);
+        assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("100")));
+        assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("105")));
+        assertEquals(true, changes.get("allowSettlementVariance"));
+        assertEquals(0, new BigDecimal(changes.get("settlementVariancePercentage").toString()).compareTo(new BigDecimal("10")));
+        assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "100");
+        assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "105");
+    }
+
+    @Test
+    public void testV2ReleaseIgnoresSettlementVariancePercentageWithoutFlag() {
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "100", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId);
+
+        ResponseSpecification errorResponseSpec = new ResponseSpecBuilder().expectStatusCode(403).build();
+        SavingsAccountHelper errorHelper = new SavingsAccountHelper(this.requestSpec, errorResponseSpec);
+
+        ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.releaseAmountV2WithError(savingsId, holdTransactionId, "105", null,
+                "10");
+        assertNotNull(error, "Percentage override should only apply when allowSettlementVariance=true");
+        assertEquals("error.msg.savingsaccount.release.amount.must.equal.hold.amount",
+                error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
+        assertNotNull(releaseTransactionId, "Hold should be released after rejection assertion so test cleanup can close the account");
+    }
+
+    @Test
     public void testReleaseRejectsNonHoldTransaction() {
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
         final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
@@ -315,14 +368,14 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertEquals(800f, (Float) summary.get("availableBalance"), 0.01);
 
         HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponse(savingsId, holdTransactionId, "180", true);
-        assertNotNull(v2Response, "V2 preAuth release response should not be null");
+        assertNotNull(v2Response, "V2 variance-enabled release response should not be null");
 
         HashMap changes = (HashMap) v2Response.get("changes");
-        assertNotNull(changes, "V2 preAuth release should return linked transaction changes");
+        assertNotNull(changes, "V2 variance-enabled release should return linked transaction changes");
         assertEquals(holdTransactionId, changes.get("holdTransactionId"));
         assertNotNull(changes.get("releaseTransactionId"), "Release transaction ID should be returned");
         assertNotNull(changes.get("withdrawalTransactionId"), "Withdrawal transaction ID should be returned");
-        assertEquals(true, changes.get("preAuth"));
+        assertEquals(true, changes.get("allowSettlementVariance"));
         assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("200")));
         assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("180")));
         assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "200");
@@ -335,7 +388,7 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
-    public void testV2ReleaseUsesStoredPreAuthWhenRequestOmitsPreAuth() {
+    public void testV2ReleaseUsesAllowSettlementVarianceWithoutPreAuthRequestParameter() {
         final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
         final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
         final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
@@ -348,12 +401,12 @@ public class HoldReleaseEnhancementIntegrationTest {
         assertNotNull(holdTransactionId);
 
         HashMap v2Response = this.savingsAccountHelper.releaseAmountV2WithFullResponseWithoutPreAuth(savingsId, holdTransactionId, "180");
-        assertNotNull(v2Response, "V2 release should use the hold transaction preAuth value when omitted");
+        assertNotNull(v2Response, "V2 release should use allowSettlementVariance instead of a preAuth request parameter");
 
         HashMap changes = (HashMap) v2Response.get("changes");
         assertNotNull(changes);
         assertEquals(holdTransactionId, changes.get("holdTransactionId"));
-        assertEquals(true, changes.get("preAuth"));
+        assertEquals(true, changes.get("allowSettlementVariance"));
         assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("200")));
         assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("180")));
         assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "200");
@@ -383,7 +436,7 @@ public class HoldReleaseEnhancementIntegrationTest {
             assertNotNull(changes);
             assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("100")));
             assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("105")));
-            assertEquals(true, changes.get("preAuth"));
+            assertEquals(true, changes.get("allowSettlementVariance"));
             assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "100");
             assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "105");
 
@@ -418,7 +471,7 @@ public class HoldReleaseEnhancementIntegrationTest {
             assertNotNull(changes);
             assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("10")));
             assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("11")));
-            assertEquals(true, changes.get("preAuth"));
+            assertEquals(true, changes.get("allowSettlementVariance"));
             assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "10");
             assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "11");
 
@@ -463,6 +516,34 @@ public class HoldReleaseEnhancementIntegrationTest {
     }
 
     @Test
+    public void testV1LinkedWithdrawalAllowsStandardHoldVarianceWhenSettlementVarianceEnabled() {
+        updatePreAuthReleaseAllowedPercentage(0L);
+        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        final Integer savingsProductId = createSavingsProductWithCashBasedAccounting();
+        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductId, ACCOUNT_TYPE_INDIVIDUAL);
+
+        this.savingsAccountHelper.approveSavings(savingsId);
+        this.savingsAccountHelper.activateSavings(savingsId);
+
+        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, "100", false,
+                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(holdTransactionId);
+
+        Integer releaseTransactionId = this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
+        assertNotNull(releaseTransactionId);
+
+        Integer withdrawalTransactionId = (Integer) this.savingsAccountHelper.withdrawalFromSavingsAccountWithReleaseTransactionId(
+                savingsId, "105", SavingsAccountHelper.TRANSACTION_DATE, releaseTransactionId, true, "10",
+                CommonConstants.RESPONSE_RESOURCE_ID);
+        assertNotNull(withdrawalTransactionId);
+        assertTransactionAmount(savingsId, withdrawalTransactionId, "105");
+
+        HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
+        assertEquals(895f, (Float) summary.get("accountBalance"), 0.01);
+        assertEquals(895f, (Float) summary.get("availableBalance"), 0.01);
+    }
+
+    @Test
     public void testV1WithdrawalAfterReleasedPreAuthHoldRejectsAmountAboveConfiguredPercentage() {
         updatePreAuthReleaseAllowedPercentage(20L);
         try {
@@ -486,7 +567,7 @@ public class HoldReleaseEnhancementIntegrationTest {
 
             ArrayList<HashMap> error = (ArrayList<HashMap>) errorHelper.withdrawalFromSavingsAccountWithReleaseTransactionId(savingsId,
                     "15", SavingsAccountHelper.TRANSACTION_DATE, releaseTransactionId, CommonConstants.RESPONSE_ERROR);
-            assertNotNull(error, "Withdrawal after released preAuth hold should reject amount above configured percentage");
+            assertNotNull(error, "Withdrawal after released variance-enabled hold should reject amount above configured percentage");
             assertEquals("error.msg.savingsaccount.release.amount.exceeds.allowed.preauth.percentage",
                     error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
         } finally {
@@ -672,7 +753,7 @@ public class HoldReleaseEnhancementIntegrationTest {
             assertNotNull(changes);
             assertEquals(0, new BigDecimal(changes.get("holdAmount").toString()).compareTo(new BigDecimal("1000")));
             assertEquals(0, new BigDecimal(changes.get("settlementAmount").toString()).compareTo(new BigDecimal("1050")));
-            assertEquals(true, changes.get("preAuth"));
+            assertEquals(true, changes.get("allowSettlementVariance"));
             assertTransactionAmount(savingsId, changes.get("releaseTransactionId"), "1000");
             assertTransactionAmount(savingsId, changes.get("withdrawalTransactionId"), "1050");
 

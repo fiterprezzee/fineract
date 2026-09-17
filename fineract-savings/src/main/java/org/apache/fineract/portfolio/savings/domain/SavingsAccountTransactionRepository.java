@@ -39,7 +39,6 @@ public interface SavingsAccountTransactionRepository
     @Query("""
             select holdTxn from SavingsAccountTransaction holdTxn
             where holdTxn.savingsAccount.id = :savingsId
-            and holdTxn.preAuth = true
             and holdTxn.releaseIdOfHoldAmountTransaction = :releaseTransactionId
             and holdTxn.reversed = false
             and exists (
@@ -55,7 +54,7 @@ public interface SavingsAccountTransactionRepository
                 and withdrawalTxn.reversed = false
             )
             """)
-    SavingsAccountTransaction findUnsettledReleasedPreAuthHoldBySavingsAccountIdAndReleaseTransactionId(@Param("savingsId") Long savingsId,
+    SavingsAccountTransaction findUnsettledReleasedHoldBySavingsAccountIdAndReleaseTransactionId(@Param("savingsId") Long savingsId,
             @Param("releaseTransactionId") Long releaseTransactionId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

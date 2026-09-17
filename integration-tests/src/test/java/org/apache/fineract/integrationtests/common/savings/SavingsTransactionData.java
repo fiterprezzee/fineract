@@ -37,7 +37,7 @@ public class SavingsTransactionData {
     private String note;
     private Boolean isBulk;
     private Boolean lienAllowed;
-    private Boolean preAuth;
+    private Boolean allowSettlementVariance;
     private String reasonForBlock;
 
     public String getJson() {
@@ -51,7 +51,7 @@ public class SavingsTransactionData {
         map.put("note", note);
         map.put("isBulk", isBulk);
         map.put("lienAllowed", lienAllowed);
-        map.put("preAuth", preAuth);
+        map.put("allowSettlementVariance", allowSettlementVariance);
         map.put("reasonForBlock", reasonForBlock);
         return new Gson().toJson(map);
     }

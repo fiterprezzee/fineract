@@ -436,6 +436,15 @@ public class SavingsAccountHelper {
                 jsonAttributeToGetback);
     }
 
+    public Object withdrawalFromSavingsAccountWithReleaseTransactionId(final Integer savingsId, final String amount, String date,
+            final Integer releaseTransactionId, final Boolean allowSettlementVariance, final String settlementVariancePercentage,
+            String jsonAttributeToGetback) {
+        LOG.info("\n--------------------------------- SAVINGS TRANSACTION LINKED SETTLEMENT WITHDRAWAL --------------------------------");
+        return withdrawalFromSavingsAccount(savingsId,
+                getSavingsTransactionJSON(amount, date, releaseTransactionId, allowSettlementVariance, settlementVariancePercentage),
+                jsonAttributeToGetback);
+    }
+
     public Response<PostSavingsAccountTransactionsResponse> withdrawalFromSavingsAccount(final Long savingsId,
             PostSavingsAccountTransactionsRequest request) {
         return Calls.executeU(FineractClientHelper.getFineractClient().savingsTransactions.transaction2(savingsId, request, "withdrawal"));
@@ -704,12 +713,12 @@ public class SavingsAccountHelper {
         return holdAmountInSavingsAccount(savingsID, amount, lienAllowed, false, date, jsonAttributeToGetback);
     }
 
-    public Object holdAmountInSavingsAccount(final Integer savingsID, final String amount, final Boolean lienAllowed, final Boolean preAuth,
-            String date, String jsonAttributeToGetback) {
+    public Object holdAmountInSavingsAccount(final Integer savingsID, final String amount, final Boolean lienAllowed,
+            final Boolean allowSettlementVariance, String date, String jsonAttributeToGetback) {
         LOG.info("--------------------------------- SAVINGS TRANSACTION HOLD AMOUNT--------------------------------");
 
         return performSavingActions(createSavingsTransactionURL(HOLD_AMOUNT_SAVINGS_COMMAND, savingsID),
-                getLienSavingsTransactionJSON(amount, date, lienAllowed, preAuth), jsonAttributeToGetback);
+                getLienSavingsTransactionJSON(amount, date, lienAllowed, allowSettlementVariance), jsonAttributeToGetback);
     }
 
     // TODO: Rewrite to use fineract-client instead!
@@ -770,16 +779,21 @@ public class SavingsAccountHelper {
 
     public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId,
             final String transactionAmount) {
-        return releaseAmountV2WithFullResponse(savingsId, holdTransactionId, transactionAmount, false);
+        return releaseAmountV2WithFullResponse(savingsId, holdTransactionId, transactionAmount, null, null);
     }
 
     public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount,
-            final Boolean preAuth) {
+            final Boolean allowSettlementVariance) {
+        return releaseAmountV2WithFullResponse(savingsId, holdTransactionId, transactionAmount, allowSettlementVariance, null);
+    }
+
+    public HashMap releaseAmountV2WithFullResponse(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount,
+            final Boolean allowSettlementVariance, final String settlementVariancePercentage) {
         LOG.info(
                 "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (FULL RESPONSE) --------------------------------");
         final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
-        return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
-                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, preAuth), "");
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE,
+                transactionAmount, allowSettlementVariance, settlementVariancePercentage), "");
     }
 
     public HashMap releaseAmountV2WithFullResponseEmptyBody(final Integer savingsId, final Integer holdTransactionId) {
@@ -795,7 +809,7 @@ public class SavingsAccountHelper {
                 "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (WITHOUT PREAUTH) --------------------------------");
         final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
         return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
-                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, null, false), "");
+                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, true, "0"), "");
     }
 
     /**
@@ -810,16 +824,21 @@ public class SavingsAccountHelper {
     }
 
     public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount) {
-        return releaseAmountV2WithError(savingsId, holdTransactionId, transactionAmount, false);
+        return releaseAmountV2WithError(savingsId, holdTransactionId, transactionAmount, null, null);
     }
 
     public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount,
-            final Boolean preAuth) {
+            final Boolean allowSettlementVariance) {
+        return releaseAmountV2WithError(savingsId, holdTransactionId, transactionAmount, allowSettlementVariance, null);
+    }
+
+    public Object releaseAmountV2WithError(final Integer savingsId, final Integer holdTransactionId, final String transactionAmount,
+            final Boolean allowSettlementVariance, final String settlementVariancePercentage) {
         LOG.info(
                 "\n--------------------------------- V2 SAVINGS TRANSACTION RELEASE + WITHDRAW (EXPECT ERROR) --------------------------------");
         final String url = createV2ReleaseTransactionURL(savingsId, holdTransactionId);
-        return Utils.performServerPost(this.requestSpec, this.responseSpec, url,
-                getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE, transactionAmount, preAuth), CommonConstants.RESPONSE_ERROR);
+        return Utils.performServerPost(this.requestSpec, this.responseSpec, url, getReleaseV2TransactionJSON(LAST_TRANSACTION_DATE,
+                transactionAmount, allowSettlementVariance, settlementVariancePercentage), CommonConstants.RESPONSE_ERROR);
     }
 
     /**
@@ -838,15 +857,11 @@ public class SavingsAccountHelper {
     }
 
     private String getReleaseV2TransactionJSON(final String transactionDate) {
-        return getReleaseV2TransactionJSON(transactionDate, null, false);
+        return getReleaseV2TransactionJSON(transactionDate, null, null, null);
     }
 
-    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount, final Boolean preAuth) {
-        return getReleaseV2TransactionJSON(transactionDate, transactionAmount, preAuth, true);
-    }
-
-    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount, final Boolean preAuth,
-            final boolean includePreAuth) {
+    private String getReleaseV2TransactionJSON(final String transactionDate, final String transactionAmount,
+            final Boolean allowSettlementVariance, final String settlementVariancePercentage) {
         final HashMap<String, Object> map = new HashMap<>();
         map.put("locale", CommonConstants.LOCALE);
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
@@ -854,8 +869,11 @@ public class SavingsAccountHelper {
         if (transactionAmount != null) {
             map.put("transactionAmount", transactionAmount);
         }
-        if (includePreAuth) {
-            map.put("preAuth", preAuth);
+        if (allowSettlementVariance != null) {
+            map.put("allowSettlementVariance", allowSettlementVariance);
+        }
+        if (settlementVariancePercentage != null) {
+            map.put("settlementVariancePercentage", settlementVariancePercentage);
         }
         return new Gson().toJson(map);
     }
@@ -968,6 +986,11 @@ public class SavingsAccountHelper {
     }
 
     private String getSavingsTransactionJSON(final String amount, final String transactionDate, final Integer releaseTransactionId) {
+        return getSavingsTransactionJSON(amount, transactionDate, releaseTransactionId, null, null);
+    }
+
+    private String getSavingsTransactionJSON(final String amount, final String transactionDate, final Integer releaseTransactionId,
+            final Boolean allowSettlementVariance, final String settlementVariancePercentage) {
         final HashMap<String, Object> map = new HashMap<>();
         map.put("locale", CommonConstants.LOCALE);
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
@@ -975,6 +998,12 @@ public class SavingsAccountHelper {
         map.put("transactionAmount", amount);
         map.put("paymentTypeId", PAYMENT_TYPE_ID);
         map.put("releaseTransactionId", releaseTransactionId);
+        if (allowSettlementVariance != null) {
+            map.put("allowSettlementVariance", allowSettlementVariance);
+        }
+        if (settlementVariancePercentage != null) {
+            map.put("settlementVariancePercentage", settlementVariancePercentage);
+        }
         return new Gson().toJson(map);
     }
 
@@ -987,9 +1016,16 @@ public class SavingsAccountHelper {
     }
 
     private String getLienSavingsTransactionJSON(final String amount, final String transactionDate, final Boolean lienAllowed,
-            final Boolean preAuth) {
-        return SavingsTransactionData.builder().transactionDate(transactionDate).transactionAmount(amount).lienAllowed(lienAllowed)
-                .preAuth(preAuth).reasonForBlock("unUsualActivity").build().getJson();
+            final Boolean allowSettlementVariance) {
+        final HashMap<String, Object> map = new HashMap<>();
+        map.put("locale", CommonConstants.LOCALE);
+        map.put("dateFormat", CommonConstants.DATE_FORMAT);
+        map.put("transactionDate", transactionDate);
+        map.put("transactionAmount", amount);
+        map.put("lienAllowed", lienAllowed);
+        map.put("allowSettlementVariance", allowSettlementVariance);
+        map.put("reasonForBlock", "unUsualActivity");
+        return new Gson().toJson(map);
     }
 
     // TODO: Rewrite to use fineract-client instead!

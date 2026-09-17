@@ -20,14 +20,15 @@ package org.apache.fineract.portfolio.savings.data;
 
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.SAVINGS_ACCOUNT_RESOURCE_NAME;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.activatedOnDateParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.allowSettlementVarianceParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.bankNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.checkNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.closedOnDateParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.lienAllowedParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.paymentTypeIdParamName;
-import static org.apache.fineract.portfolio.savings.SavingsApiConstants.preAuthParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.receiptNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.routingCodeParamName;
+import static org.apache.fineract.portfolio.savings.SavingsApiConstants.settlementVariancePercentageParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionAccountNumberParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionAmountParamName;
 import static org.apache.fineract.portfolio.savings.SavingsApiConstants.transactionDateParamName;
@@ -71,10 +72,12 @@ public class SavingsAccountTransactionDataValidator {
     private final FromJsonHelper fromApiJsonHelper;
     private static final Set<String> SAVINGS_ACCOUNT_HOLD_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
-                    transactionAmountParamName, lienAllowedParamName, SavingsApiConstants.reasonForBlockParamName, preAuthParamName));
+                    transactionAmountParamName, lienAllowedParamName, SavingsApiConstants.reasonForBlockParamName,
+                    allowSettlementVarianceParamName));
     private static final Set<String> SAVINGS_ACCOUNT_RELEASE_AMOUNT_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(transactionDateParamName, SavingsApiConstants.dateFormatParamName, SavingsApiConstants.localeParamName,
-                    transactionAmountParamName, paymentTypeIdParamName, SavingsApiConstants.noteParamName, preAuthParamName));
+                    transactionAmountParamName, paymentTypeIdParamName, SavingsApiConstants.noteParamName, allowSettlementVarianceParamName,
+                    settlementVariancePercentageParamName));
     private final ConfigurationDomainService configurationDomainService;
 
     public void validateTransactionWithPivotDate(final LocalDate transactionDate, final SavingsAccount savingsAccount) {
@@ -121,6 +124,7 @@ public class SavingsAccountTransactionDataValidator {
         baseDataValidator.reset().parameter(paymentTypeIdParamName).value(paymentType).notNull();
 
         validatePaymentTypeDetails(baseDataValidator, element);
+        validateSettlementVarianceParameters(baseDataValidator, element);
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
     }
@@ -230,8 +234,9 @@ public class SavingsAccountTransactionDataValidator {
         final BigDecimal amount = this.fromApiJsonHelper.extractBigDecimalWithLocaleNamed(transactionAmountParamName, element);
         baseDataValidator.reset().parameter(transactionAmountParamName).value(amount).notNull().positiveAmount();
         final LocalDate transactionDate = this.fromApiJsonHelper.extractLocalDateNamed(transactionDateParamName, element);
-        final Boolean preAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
-        baseDataValidator.reset().parameter(preAuthParamName).value(preAuth).ignoreIfNull().trueOrFalseRequired(preAuth);
+        final Boolean allowSettlementVariance = this.fromApiJsonHelper.extractBooleanNamed(allowSettlementVarianceParamName, element);
+        baseDataValidator.reset().parameter(allowSettlementVarianceParamName).value(allowSettlementVariance).ignoreIfNull()
+                .trueOrFalseRequired(allowSettlementVariance);
 
         final String reasonForBlock = this.fromApiJsonHelper.extractStringNamed(SavingsApiConstants.reasonForBlockParamName, element);
         baseDataValidator.reset().parameter(SavingsApiConstants.reasonForBlockParamName).value(reasonForBlock).notBlank()
@@ -349,17 +354,7 @@ public class SavingsAccountTransactionDataValidator {
             }
             validatePaymentTypeDetails(baseDataValidator, element);
 
-            if (this.fromApiJsonHelper.parameterExists(preAuthParamName, element)) {
-                final Boolean requestedPreAuth = this.fromApiJsonHelper.extractBooleanNamed(preAuthParamName, element);
-                baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).ignoreIfNull()
-                        .trueOrFalseRequired(requestedPreAuth);
-
-                if (holdTransaction != null && requestedPreAuth != null && !requestedPreAuth.equals(holdTransaction.isPreAuth())) {
-                    baseDataValidator.reset().parameter(preAuthParamName).value(requestedPreAuth).failWithCode(
-                            "validation.msg.preauth.does.not.match.hold.transaction",
-                            "The preAuth parameter must match the original hold transaction");
-                }
-            }
+            validateSettlementVarianceParameters(baseDataValidator, element);
         }
 
         throwExceptionIfValidationWarningsExist(dataValidationErrors);
@@ -367,6 +362,30 @@ public class SavingsAccountTransactionDataValidator {
         SavingsAccountTransaction transaction = SavingsAccountTransaction.releaseAmount(holdTransaction, transactionDate,
                 Money.of(holdTransaction.getSavingsAccount().getCurrency(), transactionAmount));
         return transaction;
+    }
+
+    public void validateSettlementVarianceParameters(final JsonElement element) {
+        final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
+        final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
+                .resource(SAVINGS_ACCOUNT_RESOURCE_NAME);
+        validateSettlementVarianceParameters(baseDataValidator, element);
+        throwExceptionIfValidationWarningsExist(dataValidationErrors);
+    }
+
+    private void validateSettlementVarianceParameters(final DataValidatorBuilder baseDataValidator, final JsonElement element) {
+        Boolean allowSettlementVariance = null;
+        if (this.fromApiJsonHelper.parameterExists(allowSettlementVarianceParamName, element)) {
+            allowSettlementVariance = this.fromApiJsonHelper.extractBooleanNamed(allowSettlementVarianceParamName, element);
+            baseDataValidator.reset().parameter(allowSettlementVarianceParamName).value(allowSettlementVariance).ignoreIfNull()
+                    .trueOrFalseRequired(allowSettlementVariance);
+        }
+
+        if (this.fromApiJsonHelper.parameterExists(settlementVariancePercentageParamName, element)) {
+            final BigDecimal settlementVariancePercentage = this.fromApiJsonHelper
+                    .extractBigDecimalWithLocaleNamed(settlementVariancePercentageParamName, element);
+            baseDataValidator.reset().parameter(settlementVariancePercentageParamName).value(settlementVariancePercentage).notNull()
+                    .zeroOrPositiveAmount().notGreaterThanMax(BigDecimal.valueOf(100));
+        }
     }
 
     public SavingsAccountTransaction validateReleaseAmountAndAssembleForm(final SavingsAccountTransaction holdTransaction) {

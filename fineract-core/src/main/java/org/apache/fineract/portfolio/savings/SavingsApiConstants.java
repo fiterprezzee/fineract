@@ -150,7 +150,8 @@ public class SavingsApiConstants {
     public static final String transactionDateParamName = "transactionDate";
     public static final String lienParamName = "lien";
     public static final String transactionAmountParamName = "transactionAmount";
-    public static final String preAuthParamName = "preAuth";
+    public static final String allowSettlementVarianceParamName = "allowSettlementVariance";
+    public static final String settlementVariancePercentageParamName = "settlementVariancePercentage";
     public static final String releaseTransactionIdParamName = "releaseTransactionId";
     public static final String paymentDetailDataParamName = "paymentDetailData";
     public static final String runningBalanceParamName = "runningBalance";

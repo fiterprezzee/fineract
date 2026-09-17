@@ -148,8 +148,8 @@ public class SavingsProductToGLAccountMappingHelper extends ProductToGLAccountMa
                 element);
         final Long transfersInSuspenseAccountId = this.fromApiJsonHelper
                 .extractLongNamed(SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue(), element);
-        final Long fundsOnHoldAccountId = this.fromApiJsonHelper
-                .extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(), element);
+        final Long fundsOnHoldAccountId = this.fromApiJsonHelper.extractLongNamed(SavingProductAccountingParams.FUNDS_ON_HOLD.getValue(),
+                element);
         final Long overdraftControlId = this.fromApiJsonHelper
                 .extractLongNamed(SavingProductAccountingParams.OVERDRAFT_PORTFOLIO_CONTROL.getValue(), element);
         final Long incomeFromInterest = this.fromApiJsonHelper

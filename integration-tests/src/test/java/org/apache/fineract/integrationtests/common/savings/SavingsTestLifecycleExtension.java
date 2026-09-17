@@ -28,6 +28,7 @@ import java.math.MathContext;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.client.models.PostSavingsAccountTransactionsRequest;
 import org.apache.fineract.client.models.PostSavingsAccountsAccountIdRequest;
@@ -63,6 +64,7 @@ public class SavingsTestLifecycleExtension implements AfterAllCallback {
             List<Long> savingsIds = SavingsAccountHelper.getSavingsIdsByStatusId(300);
             savingsIds.forEach(savingsId -> {
                 try {
+                    releaseActiveHolds(savingsId);
                     this.savingsAccountHelper.postInterestForSavings(savingsId.intValue());
                     SavingsAccountData savingsAccountData = Calls
                             .ok(FineractClientHelper.getFineractClient().savingsAccounts.retrieveOne25(savingsId, false, null, "all"));
@@ -80,10 +82,41 @@ public class SavingsTestLifecycleExtension implements AfterAllCallback {
                         savingsAccountHelper.closeSavingsAccount(savingsId, new PostSavingsAccountsAccountIdRequest().locale("en")
                                 .dateFormat(DATE_FORMAT).closedOnDate(dateFormatter.format(Utils.getLocalDateOfTenant())));
                     }
-                } catch (Exception e) {
+                } catch (Exception | AssertionError e) {
                     log.warn("Unable to close savings account: {}, Reason: {}", savingsId, e.getMessage());
                 }
             });
         });
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private void releaseActiveHolds(Long savingsId) {
+        List<Map> transactions = (List<Map>) this.savingsAccountHelper.getSavingsDetails(Math.toIntExact(savingsId), "transactions");
+        if (transactions == null || transactions.isEmpty()) {
+            return;
+        }
+        transactions.stream().filter(this::isUnreleasedHoldTransaction).forEach(transaction -> {
+            Integer transactionId = ((Number) transaction.get("id")).intValue();
+            try {
+                this.savingsAccountHelper.releaseAmount(Math.toIntExact(savingsId), transactionId);
+            } catch (Exception | AssertionError e) {
+                log.warn("Unable to release hold transaction: {} for savings account: {}, Reason: {}", transactionId, savingsId,
+                        e.getMessage());
+            }
+        });
+    }
+
+    private boolean isUnreleasedHoldTransaction(Map<?, ?> transaction) {
+        Object transactionTypeValue = transaction.get("transactionType");
+        if (!(transactionTypeValue instanceof Map<?, ?> transactionType)) {
+            return false;
+        }
+        Object amountHoldValue = transactionType.get("amountHold");
+        Object reversedValue = transaction.get("reversed");
+        Object releaseTransactionIdValue = transaction.get("releaseTransactionId");
+        boolean amountHold = Boolean.TRUE.equals(amountHoldValue);
+        boolean reversed = Boolean.TRUE.equals(reversedValue);
+        boolean released = releaseTransactionIdValue instanceof Number number && number.longValue() > 0;
+        return amountHold && !reversed && !released;
     }
 }

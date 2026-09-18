@@ -61,8 +61,11 @@ import org.apache.fineract.portfolio.savings.SavingsApiConstants;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountSubStatusEnum;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransaction;
+import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransactionRepository;
 import org.apache.fineract.portfolio.savings.exception.TransactionBeforePivotDateNotAllowed;
 import org.apache.fineract.useradministration.domain.AppUser;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -79,6 +82,7 @@ public class SavingsAccountTransactionDataValidator {
                     transactionAmountParamName, paymentTypeIdParamName, SavingsApiConstants.noteParamName, allowSettlementVarianceParamName,
                     settlementVariancePercentageParamName));
     private final ConfigurationDomainService configurationDomainService;
+    private final SavingsAccountTransactionRepository savingsAccountTransactionRepository;
 
     public void validateTransactionWithPivotDate(final LocalDate transactionDate, final SavingsAccount savingsAccount) {
         final boolean backdatedTxnsAllowedTill = this.configurationDomainService.retrievePivotDateConfig();
@@ -290,7 +294,11 @@ public class SavingsAccountTransactionDataValidator {
         LocalDate lastTransactionDate = null;
 
         if (!backdatedTxnsAllowedTill) {
-            lastTransactionDate = account.retrieveLastTransactionDate();
+            List<LocalDate> lastTransactionDates = this.savingsAccountTransactionRepository.findLastTransactionDate(account.getId(),
+                    PageRequest.of(0, 1, Sort.by("dateOf", "createdDate", "id").descending()));
+            if (!lastTransactionDates.isEmpty()) {
+                lastTransactionDate = lastTransactionDates.get(0);
+            }
         } else {
             lastTransactionDate = account.retrieveLastTransactionDateWithPivotConfig();
         }

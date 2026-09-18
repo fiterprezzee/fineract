@@ -32,5 +32,8 @@
     <include file="custom/0003_hold_release_v2_cleanup.xml" relativeToChangelogFile="true"/>
     <include file="custom/0004_hold_pre_authorization.xml" relativeToChangelogFile="true"/>
     <include file="custom/0005_preauth_release_allowed_percentage_configuration.xml" relativeToChangelogFile="true"/>
+    <include file="custom/0006_related_transaction_id_savings_account_transaction.xml" relativeToChangelogFile="true"/>
+    <include file="custom/0007_release_amount_with_withdrawal_permission.xml" relativeToChangelogFile="true"/>
+    <include file="custom/0008_rename_pre_authorization_to_allow_settlement_variance.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

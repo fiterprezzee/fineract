@@ -36,7 +36,8 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
         private String transactionAmount;
         private Long paymentTypeId;
         private String note;
-        private Boolean preAuth;
+        private Boolean allowSettlementVariance;
+        private String settlementVariancePercentage;
 
         private ReleaseAmountV2Request() {}
 
@@ -94,13 +95,22 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
             this.note = note;
         }
 
-        @Schema(description = "Required settlement flag. Must match the preAuth value stored on the original hold transaction.", example = "true")
-        public Boolean getPreAuth() {
-            return preAuth;
+        @Schema(description = "Optional generic settlement variance flag. When true, settlement variance rules apply.", example = "true")
+        public Boolean getAllowSettlementVariance() {
+            return allowSettlementVariance;
         }
 
-        public void setPreAuth(Boolean preAuth) {
-            this.preAuth = preAuth;
+        public void setAllowSettlementVariance(Boolean allowSettlementVariance) {
+            this.allowSettlementVariance = allowSettlementVariance;
+        }
+
+        @Schema(description = "Optional percentage override for this settlement. Used only when allowSettlementVariance is true; otherwise the global configured percentage is used.", example = "10")
+        public String getSettlementVariancePercentage() {
+            return settlementVariancePercentage;
+        }
+
+        public void setSettlementVariancePercentage(String settlementVariancePercentage) {
+            this.settlementVariancePercentage = settlementVariancePercentage;
         }
     }
 
@@ -168,7 +178,8 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
         private Long withdrawalTransactionId;
         private String holdAmount;
         private String settlementAmount;
-        private Boolean preAuth;
+        private Boolean allowSettlementVariance;
+        private String settlementVariancePercentage;
 
         private ReleaseAmountV2Changes() {}
 
@@ -217,13 +228,22 @@ public final class SavingsAccountTransactionsV2ApiResourceSwagger {
             this.settlementAmount = settlementAmount;
         }
 
-        @Schema(description = "The pre-authorization flag from the original hold transaction.", example = "true")
-        public Boolean getPreAuth() {
-            return preAuth;
+        @Schema(description = "Whether the request explicitly allowed generic settlement variance.", example = "true")
+        public Boolean getAllowSettlementVariance() {
+            return allowSettlementVariance;
         }
 
-        public void setPreAuth(Boolean preAuth) {
-            this.preAuth = preAuth;
+        public void setAllowSettlementVariance(Boolean allowSettlementVariance) {
+            this.allowSettlementVariance = allowSettlementVariance;
+        }
+
+        @Schema(description = "Request-level settlement variance percentage used for this settlement, when provided.", example = "10")
+        public String getSettlementVariancePercentage() {
+            return settlementVariancePercentage;
+        }
+
+        public void setSettlementVariancePercentage(String settlementVariancePercentage) {
+            this.settlementVariancePercentage = settlementVariancePercentage;
         }
     }
 }

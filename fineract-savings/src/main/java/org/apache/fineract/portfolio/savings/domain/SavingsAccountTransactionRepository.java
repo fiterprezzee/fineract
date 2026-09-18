@@ -36,12 +36,34 @@ public interface SavingsAccountTransactionRepository
             @Param("savingsId") Long savingsId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select holdTxn from SavingsAccountTransaction holdTxn
+            where holdTxn.savingsAccount.id = :savingsId
+            and holdTxn.releaseIdOfHoldAmountTransaction = :releaseTransactionId
+            and holdTxn.reversed = false
+            and exists (
+                select releaseTxn.id from SavingsAccountTransaction releaseTxn
+                where releaseTxn.savingsAccount.id = :savingsId
+                and releaseTxn.id = :releaseTransactionId
+                and releaseTxn.reversed = false
+            )
+            and not exists (
+                select withdrawalTxn.id from SavingsAccountTransaction withdrawalTxn
+                where withdrawalTxn.savingsAccount.id = :savingsId
+                and withdrawalTxn.relatedTransactionId = :releaseTransactionId
+                and withdrawalTxn.reversed = false
+            )
+            """)
+    SavingsAccountTransaction findUnsettledReleasedHoldBySavingsAccountIdAndReleaseTransactionId(@Param("savingsId") Long savingsId,
+            @Param("releaseTransactionId") Long releaseTransactionId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select st from SavingsAccountTransaction st where st.savingsAccount = :savingsAccount and st.dateOf >= :transactionDate order by st.dateOf,st.createdDate,st.id")
     List<SavingsAccountTransaction> findTransactionsAfterPivotDate(@Param("savingsAccount") SavingsAccount savingsAccount,
             @Param("transactionDate") LocalDate transactionDate);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select st from SavingsAccountTransaction st where st.savingsAccount = :savingsAccount and st.dateOf = :date and st.reversalTransaction <> 1 and st.reversed <> 1 order by st.id")
+    @Query("select st from SavingsAccountTransaction st where st.savingsAccount = :savingsAccount and st.dateOf = :date and st.reversalTransaction <> true and st.reversed <> true order by st.id")
     List<SavingsAccountTransaction> findTransactionRunningBalanceBeforePivotDate(@Param("savingsAccount") SavingsAccount savingsAccount,
             @Param("date") LocalDate date);
 
